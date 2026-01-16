@@ -1,0 +1,40 @@
+{
+  "meetings": [
+    {
+      "id": "english_class",
+      "title": "English Lesson",
+      "description": "Weekly English practice",
+      "duration_minutes": 60,
+      "chat_id": "1915241420",
+      "schedule": {
+        "days": ["Monday", "Wednesday", "Friday", "Saturday"],
+        "hour": 0,
+        "minute": 16
+      }
+    },
+    {
+      "id": "math_class",
+      "title": "Math Lesson",
+      "description": "Math tutoring session",
+      "duration_minutes": 60,
+      "chat_id": "987654321",
+      "schedule": {
+        "days": ["Tuesday", "Thursday"],
+        "hour": 17,
+        "minute": 30
+      }
+    },
+    {
+      "id": "team_standup",
+      "title": "Team Standup",
+      "description": "Daily team sync",
+      "duration_minutes": 30,
+      "chat_id": "-1001234567890",
+      "schedule": {
+        "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        "hour": 9,
+        "minute": 0
+      }
+    }
+  ]
+}

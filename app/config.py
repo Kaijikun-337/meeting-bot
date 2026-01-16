@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -7,11 +8,7 @@ load_dotenv()
 class Config:
     # Telegram
     TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-    TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-    
-    # Schedule
-    MEETING_HOUR = int(os.getenv("MEETING_HOUR", 19))
-    MEETING_MINUTE = int(os.getenv("MEETING_MINUTE", 0))
+    DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
     
     # Timezone
     TIMEZONE = os.getenv("TIMEZONE", "UTC")
@@ -19,3 +16,20 @@ class Config:
     # Google
     CREDENTIALS_FILE = "credentials.json"
     TOKEN_FILE = "token.json"
+    
+    # Meetings config
+    MEETINGS_FILE = "meetings.json"
+    
+    @staticmethod
+    def load_meetings() -> list:
+        """Load meetings from JSON file."""
+        try:
+            with open(Config.MEETINGS_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('meetings', [])
+        except FileNotFoundError:
+            print(f"⚠️ {Config.MEETINGS_FILE} not found. Using empty list.")
+            return []
+        except json.JSONDecodeError as e:
+            print(f"❌ Invalid JSON in {Config.MEETINGS_FILE}: {e}")
+            return []
