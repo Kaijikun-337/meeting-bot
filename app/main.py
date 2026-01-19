@@ -1,26 +1,80 @@
 import sys
-from app.scheduler import start_scheduler, run_meeting_now, list_meetings
-from app.google_meet import create_meeting, get_google_credentials
-from app.telegram_bot import meeting_bot
+import asyncio
 from app.config import Config
+from app.database.db import init_database
+from app.scheduler import setup_scheduler, run_meeting_now, list_meetings
+from app.jitsi_meet import create_jitsi_meeting
+from app.telegram_bot import meeting_bot
+from app.bot.handlers import create_bot_application
 
 
 def print_help():
     print("""
 🤖 Meeting Bot - Commands
-=========================
+===========================
 
-python -m app.main              Start scheduler (runs all meetings)
-python -m app.main list         List all configured meetings
+python -m app.main              Start bot + scheduler
+python -m app.main bot          Start bot only
+python -m app.main scheduler    Start scheduler only
+python -m app.main list         List all meetings
 python -m app.main run <id>     Run specific meeting now
-python -m app.main test         Quick test (creates test meeting)
-python -m app.main auth         Authenticate with Google
+python -m app.main test         Quick test
 python -m app.main help         Show this help
-
-Examples:
-  python -m app.main run english_class
-  python -m app.main list
 """)
+
+
+async def run_bot_only():
+    """Run only the Telegram bot."""
+    print("🤖 Starting Telegram bot...")
+    app = create_bot_application()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    print("✅ Bot running! Press Ctrl+C to stop.")
+    
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
+
+
+async def run_bot_and_scheduler():
+    """Run both bot and scheduler."""
+    print("🤖 Starting Meeting Bot...")
+    
+    # Initialize database
+    init_database()
+    
+    # Start scheduler
+    scheduler = setup_scheduler()
+    scheduler.start()
+    print("📅 Scheduler started!")
+    
+    # Start bot
+    print("🤖 Starting Telegram bot...")
+    app = create_bot_application()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    print("✅ Bot + Scheduler running! Press Ctrl+C to stop.")
+    
+    try:
+        while True:
+            await asyncio.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("\n🛑 Shutting down...")
+        scheduler.shutdown()
+        await app.updater.stop()
+        await app.stop()
+        await app.shutdown()
+        print("👋 Goodbye!")
 
 
 def main():
@@ -28,8 +82,7 @@ def main():
     print("=" * 40)
     
     if len(sys.argv) < 2:
-        # Default: Start scheduler
-        start_scheduler()
+        asyncio.run(run_bot_and_scheduler())
         return
     
     command = sys.argv[1].lower()
@@ -37,33 +90,37 @@ def main():
     if command == "help":
         print_help()
     
+    elif command == "bot":
+        asyncio.run(run_bot_only())
+    
+    elif command == "scheduler":
+        init_database()
+        scheduler = setup_scheduler()
+        scheduler.start()
+        print("📅 Scheduler running! Press Ctrl+C to stop.")
+        try:
+            while True:
+                pass
+        except KeyboardInterrupt:
+            scheduler.shutdown()
+            print("\n👋 Stopped")
+    
     elif command == "list":
         list_meetings()
     
     elif command == "run":
         if len(sys.argv) < 3:
-            print("❌ Please specify meeting ID")
-            print("Usage: python -m app.main run <meeting_id>")
-            print("\nAvailable meetings:")
+            print("❌ Specify meeting ID")
             list_meetings()
         else:
-            meeting_id = sys.argv[2]
-            run_meeting_now(meeting_id)
+            run_meeting_now(sys.argv[2])
     
     elif command == "test":
         print("🧪 Testing...")
-        meeting = create_meeting(
-            title="Test Meeting",
-            duration_minutes=30
-        )
+        meeting = create_jitsi_meeting(title="Test Meeting")
         print(f"✅ Created: {meeting['meet_link']}")
         meeting_bot.send_meeting_link_sync(meeting)
-        print("✅ Sent to default chat!")
-    
-    elif command == "auth":
-        print("🔐 Authenticating with Google...")
-        get_google_credentials()
-        print("✅ Authenticated!")
+        print("✅ Sent to Telegram!")
     
     else:
         print(f"❌ Unknown command: {command}")

@@ -11,8 +11,11 @@ class MeetingBot:
     async def send_meeting_link(self, meeting: dict, chat_id: str = None) -> bool:
         """Send meeting link to Telegram."""
         target_chat_id = chat_id or self.default_chat_id
-        
-        message = f"""🎥 <b>Meeting Time!</b>
+    
+        platform = meeting.get('platform', 'google')
+    
+        if platform == 'jitsi':
+            message = f"""🎥 <b>Lesson Time!</b>
 
 📌 <b>Title:</b> {meeting['title']}
 ⏰ <b>Time:</b> {meeting['start_time']}

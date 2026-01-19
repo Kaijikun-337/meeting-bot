@@ -1,54 +1,60 @@
-from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 import pytz
+from datetime import datetime
 from app.config import Config
-from app.google_meet import create_meeting
+from app.jitsi_meet import create_jitsi_meeting
 from app.telegram_bot import meeting_bot
+from app.services.lesson_service import check_lesson_status
+from app.services.request_service import cleanup_expired_requests
 
 
-# Map day names to cron format
 DAY_MAP = {
-    'monday': 'mon',
-    'tuesday': 'tue',
-    'wednesday': 'wed',
-    'thursday': 'thu',
-    'friday': 'fri',
-    'saturday': 'sat',
-    'sunday': 'sun'
+    'monday': 'mon', 'tuesday': 'tue', 'wednesday': 'wed',
+    'thursday': 'thu', 'friday': 'fri', 'saturday': 'sat', 'sunday': 'sun'
 }
 
 
 def create_meeting_job(meeting_config: dict):
-    """Job function for a specific meeting."""
-    print(f"⏰ Creating meeting: {meeting_config['title']}")
+    """Job function that checks overrides before creating meeting."""
+    tz = pytz.timezone(Config.TIMEZONE)
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+    
+    meeting_id = meeting_config['id']
+    
+    # Check for overrides
+    status = check_lesson_status(meeting_id, today)
+    
+    if status['status'] == 'cancelled':
+        print(f"⏭️ Skipping {meeting_config['title']} - CANCELLED")
+        return
+    
+    if status['status'] == 'postponed':
+        print(f"⏭️ Skipping {meeting_config['title']} - POSTPONED to {status['new_date']}")
+        return
     
     # Create meeting
-    meeting = create_meeting(
-        title=meeting_config['title'],
-        duration_minutes=meeting_config.get('duration_minutes', 60),
-        description=meeting_config.get('description', '')
-    )
+    print(f"⏰ Creating meeting: {meeting_config['title']}")
+    
+    meeting = create_jitsi_meeting(title=meeting_config['title'])
     
     print(f"✅ Meeting created: {meeting['meet_link']}")
     
-    # Send to specific chat ID
     chat_id = meeting_config.get('chat_id')
     meeting_bot.send_meeting_link_sync(meeting, chat_id)
     
     print(f"✅ Sent to chat: {chat_id}")
 
 
-def start_scheduler():
-    """Start the scheduler with all meetings."""
-    scheduler = BlockingScheduler(timezone=pytz.timezone(Config.TIMEZONE))
+def setup_scheduler() -> BackgroundScheduler:
+    """Create and configure scheduler."""
+    scheduler = BackgroundScheduler(timezone=pytz.timezone(Config.TIMEZONE))
     
-    # Load meetings from config
     meetings = Config.load_meetings()
     
     if not meetings:
         print("⚠️ No meetings configured!")
-        print(f"Add meetings to {Config.MEETINGS_FILE}")
-        return
+        return scheduler
     
     print(f"📅 Loading {len(meetings)} meetings...")
     print("=" * 50)
@@ -59,14 +65,11 @@ def start_scheduler():
         hour = schedule.get('hour', 9)
         minute = schedule.get('minute', 0)
         
-        # Convert day names to cron format
         cron_days = ','.join([DAY_MAP.get(d.lower(), d) for d in days])
         
         if not cron_days:
-            print(f"⚠️ Skipping {meeting_config['id']}: No days specified")
             continue
         
-        # Add job
         scheduler.add_job(
             create_meeting_job,
             CronTrigger(
@@ -83,18 +86,17 @@ def start_scheduler():
         print(f"✅ {meeting_config['title']}")
         print(f"   📆 Days: {', '.join(days)}")
         print(f"   ⏰ Time: {hour:02d}:{minute:02d}")
-        print(f"   💬 Chat: {meeting_config.get('chat_id')}")
-        print()
+    
+    # Cleanup expired requests daily
+    scheduler.add_job(
+        cleanup_expired_requests,
+        CronTrigger(hour=0, minute=0),
+        id='cleanup_requests',
+        name='Cleanup expired requests'
+    )
     
     print("=" * 50)
-    print(f"🚀 Scheduler running! ({Config.TIMEZONE})")
-    print("Press Ctrl+C to stop")
-    print()
-    
-    try:
-        scheduler.start()
-    except KeyboardInterrupt:
-        print("\n👋 Scheduler stopped")
+    return scheduler
 
 
 def run_meeting_now(meeting_id: str):
@@ -108,7 +110,6 @@ def run_meeting_now(meeting_id: str):
             return True
     
     print(f"❌ Meeting not found: {meeting_id}")
-    print(f"Available meetings: {[m['id'] for m in meetings]}")
     return False
 
 
@@ -134,5 +135,4 @@ def list_meetings():
    📆 Days: {days}
    ⏰ Time: {time}
    💬 Chat ID: {m.get('chat_id')}
-   ⏱️ Duration: {m.get('duration_minutes', 60)} min
 """)

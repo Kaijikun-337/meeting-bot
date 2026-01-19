@@ -1,39 +1,48 @@
 {
   "meetings": [
     {
-      "id": "english_class",
-      "title": "English Lesson",
-      "description": "Weekly English practice",
+      "id": "math_odd_1900_group_a",
+      "title": "Математика",
+      "description": "Групповые занятия по математике. Ученики: Нормина, Мубина",
       "duration_minutes": 60,
       "chat_id": "1915241420",
+      "teacher_chat_id": "-",
+      "subject": "math",
+      "group_name": "Группа A",
       "schedule": {
-        "days": ["Monday", "Wednesday", "Friday", "Saturday"],
-        "hour": 0,
-        "minute": 16
+        "days": ["monday", "wednesday", "friday"],
+        "hour": 19,
+        "minute": 18
       }
     },
     {
-      "id": "math_class",
-      "title": "Math Lesson",
-      "description": "Math tutoring session",
+      "id": "math_even_1800_group_a",
+      "title": "Математика",
+      "description": "Индивидуальное занятие по математике. Ученики: Алексей",
       "duration_minutes": 60,
-      "chat_id": "987654321",
+      "chat_id": "-100111111111",
+      "teacher_chat_id": "123456789",
+      "subject": "math",
+      "group_name": "Group A",
       "schedule": {
-        "days": ["Tuesday", "Thursday"],
+        "days": ["tuesday", "thursday"],
         "hour": 17,
-        "minute": 30
+        "minute": 55
       }
     },
     {
-      "id": "team_standup",
-      "title": "Team Standup",
-      "description": "Daily team sync",
-      "duration_minutes": 30,
-      "chat_id": "-1001234567890",
+      "id": "math_odd_2000_group_b",
+      "title": "Математика",
+      "description": "Индивидуальное занятие по математике. Ученики: Азиза",
+      "duration_minutes": 60,
+      "chat_id": "-100222222222",
+      "teacher_chat_id": "123456789",
+      "subject": "math",
+      "group_name": "Group B",
       "schedule": {
-        "days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
-        "hour": 9,
-        "minute": 0
+        "days": ["monday", "wednesday", "friday"],
+        "hour": 19,
+        "minute": 55
       }
     }
   ]

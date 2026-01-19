@@ -13,23 +13,24 @@ class Config:
     # Timezone
     TIMEZONE = os.getenv("TIMEZONE", "UTC")
     
-    # Google
-    CREDENTIALS_FILE = "credentials.json"
-    TOKEN_FILE = "token.json"
-    
     # Meetings config
     MEETINGS_FILE = "meetings.json"
     
+    # Database
+    DATABASE_FILE = "data.db"
+    
+    # Rules
+    MIN_HOURS_BEFORE_CHANGE = 2
+    
     @staticmethod
     def load_meetings() -> list:
-        """Load meetings from JSON file."""
         try:
-            with open(Config.MEETINGS_FILE, 'r') as f:
+            with open(Config.MEETINGS_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 return data.get('meetings', [])
         except FileNotFoundError:
-            print(f"⚠️ {Config.MEETINGS_FILE} not found. Using empty list.")
+            print(f"⚠️ {Config.MEETINGS_FILE} not found")
             return []
         except json.JSONDecodeError as e:
-            print(f"❌ Invalid JSON in {Config.MEETINGS_FILE}: {e}")
+            print(f"❌ Invalid JSON: {e}")
             return []
