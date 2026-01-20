@@ -1,0 +1,34 @@
+{
+  "courses": [
+    {
+      "subject": "Math",
+      "teacher": "Mr. Smith",
+      "group": "Group C",
+      "price": 150.00,
+      "currency": "USD"
+    },
+    {
+      "subject": "Math",
+      "teacher": "Mr. Smith",
+      "group": "Group B",
+      "price": 150.00,
+      "currency": "USD"
+    },
+    {
+      "subject": "English",
+      "teacher": "Ms. Johnson",
+      "group": "Group A",
+      "price": 120.00,
+      "currency": "USD"
+    },
+    {
+      "subject": "Physics",
+      "teacher": "Mr. Brown",
+      "group": "Group D",
+      "price": 180.00,
+      "currency": "USD"
+    }
+  ],
+  "default_price": 100.00,
+  "currency": "USD"
+}

@@ -1,163 +1,149 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
-from app.bot.keyboards import role_keyboard, groups_keyboard
-from app.services.user_service import register_user, is_registered, add_teacher_group
+from app.services.user_service import activate_user, is_registered, get_user
 from app.config import Config
 
-# Conversation states
-CHOOSING_ROLE, ENTERING_NAME, CHOOSING_GROUP, ADDING_GROUPS = range(4)
+# States
+ENTERING_KEY = 0
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
-    chat_id = update.effective_chat.id
+    chat_id = str(update.effective_chat.id)
     
-    if is_registered(str(chat_id)):
+    # Check if admin - no registration needed
+    if str(chat_id) == str(Config.ADMIN_CHAT_ID):
         await update.message.reply_text(
-            "👋 Welcome back!\n\n"
-            "Commands:\n"
-            "/change - Postpone or cancel a lesson\n"
+            "👋 <b>Welcome, Admin!</b>\n\n"
+            "<b>Admin Commands:</b>\n"
+            "/new_student - Add new student\n"
+            "/new_teacher - Add new teacher\n"
+            "/users - List all users\n\n"
+            "<b>Other Commands:</b>\n"
+            "/schedule - View schedule\n"
+            "/today - View today's lessons\n"
+            "/help - Get help",
+            parse_mode='HTML'
+        )
+        return ConversationHandler.END
+    
+    # Check if already registered
+    if is_registered(chat_id):
+        user = get_user(chat_id)
+        await update.message.reply_text(
+            f"👋 Welcome back, <b>{user['name']}</b>!\n\n"
+            "<b>Commands:</b>\n"
+            "/schedule - View weekly schedule\n"
+            "/today - View today's lessons\n"
+            "/change - Postpone or cancel lesson\n"
+            "/pay - Submit payment\n"
             "/status - Check your status\n"
-            "/help - Get help"
+            "/help - Get help",
+            parse_mode='HTML'
         )
         return ConversationHandler.END
     
     await update.message.reply_text(
-        "👋 Welcome to the Meeting Bot!\n\n"
-        "First, let's register you.\n"
-        "Are you a teacher or a student?",
-        reply_markup=role_keyboard()
+        "👋 <b>Welcome to Meeting Bot!</b>\n\n"
+        "Please enter your <b>registration key</b>:\n\n"
+        "<i>Format: STU-XXXXXX or TCH-XXXXXX</i>\n\n"
+        "Don't have a key? Contact your administrator.",
+        parse_mode='HTML'
     )
-    return CHOOSING_ROLE
+    
+    return ENTERING_KEY
 
 
-async def role_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle role selection."""
-    query = update.callback_query
-    await query.answer()
+async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle registration key input."""
+    text = update.message.text.strip()
     
-    role = query.data.replace("role_", "")  # teacher or student
-    context.user_data['role'] = role
-    
-    await query.edit_message_text(
-        f"You selected: {'👨‍🏫 Teacher' if role == 'teacher' else '👨‍🎓 Student'}\n\n"
-        "Please enter your full name:"
-    )
-    return ENTERING_NAME
-
-
-async def name_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle name input."""
-    name = update.message.text.strip()
-    context.user_data['name'] = name
-    
-    role = context.user_data['role']
-    
-    if role == 'student':
-        # Students choose their group
-        meetings = Config.load_meetings()
-        groups = list(set([m.get('group_name', 'Default') for m in meetings]))
-        
-        if not groups:
-            groups = ['Default']
-        
+    # Ignore if it looks like a command
+    if text.startswith('/'):
         await update.message.reply_text(
-            f"Nice to meet you, {name}! 👋\n\n"
-            "Which group are you in?",
-            reply_markup=groups_keyboard(groups)
+            "❌ Registration cancelled.\n\n"
+            "Use /start to try again."
         )
-        return CHOOSING_GROUP
-    else:
-        # Teachers - register first, then add groups
-        chat_id = update.effective_chat.id
-        register_user(str(chat_id), name, 'teacher')
-        
-        meetings = Config.load_meetings()
-        groups = list(set([m.get('group_name', 'Default') for m in meetings]))
-        
+        return ConversationHandler.END
+    
+    key = text.upper()
+    chat_id = str(update.effective_chat.id)
+    
+    # Validate key format
+    if not (key.startswith("STU-") or key.startswith("TCH-")):
         await update.message.reply_text(
-            f"Welcome, {name}! 👨‍🏫\n\n"
-            "Which groups do you teach?\n"
-            "(Select all that apply, then type /done)",
-            reply_markup=groups_keyboard(groups)
+            "❌ Invalid key format.\n\n"
+            "Keys look like: <code>STU-ABC123</code> or <code>TCH-XYZ789</code>\n\n"
+            "Please try again or /cancel:",
+            parse_mode='HTML'
         )
-        context.user_data['selected_groups'] = []
-        return ADDING_GROUPS
-
-
-async def group_chosen_student(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle student group selection."""
-    query = update.callback_query
-    await query.answer()
+        return ENTERING_KEY
     
-    group = query.data.replace("group_", "")
-    chat_id = update.effective_chat.id
-    name = context.user_data['name']
+    # Try to activate
+    result = activate_user(chat_id, key)
     
-    # Register student
-    register_user(str(chat_id), name, 'student', group)
+    if result.get("error"):
+        error = result["error"]
+        
+        if error == "invalid_key":
+            await update.message.reply_text(
+                "❌ <b>Invalid key.</b>\n\n"
+                "This key doesn't exist.\n"
+                "Please check and try again:",
+                parse_mode='HTML'
+            )
+            return ENTERING_KEY
+        
+        elif error == "key_already_used":
+            await update.message.reply_text(
+                "❌ <b>Key already used.</b>\n\n"
+                "This key has been used by another account.\n"
+                "Contact your administrator for a new key.",
+                parse_mode='HTML'
+            )
+            return ConversationHandler.END
+        
+        elif error == "already_registered":
+            await update.message.reply_text(
+                "❌ <b>Already registered.</b>\n\n"
+                "You already have an active account.",
+                parse_mode='HTML'
+            )
+            return ConversationHandler.END
+        
+        else:
+            await update.message.reply_text(f"❌ Error: {error}")
+            return ConversationHandler.END
     
-    await query.edit_message_text(
-        f"✅ Registration complete!\n\n"
-        f"Name: {name}\n"
-        f"Role: Student\n"
-        f"Group: {group}\n\n"
-        "Commands:\n"
-        "/change - Request lesson postpone/cancel\n"
-        "/status - Check your status"
-    )
-    return ConversationHandler.END
-
-
-async def group_chosen_teacher(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle teacher group selection."""
-    query = update.callback_query
-    await query.answer()
+    # Success!
+    name = result['name']
+    role = result['role']
+    group = result.get('group_name', '')
     
-    group = query.data.replace("group_", "")
-    chat_id = update.effective_chat.id
-    
-    if group not in context.user_data.get('selected_groups', []):
-        context.user_data['selected_groups'].append(group)
-        add_teacher_group(str(chat_id), group)
-    
-    selected = context.user_data['selected_groups']
-    
-    await query.edit_message_text(
-        f"✅ Added: {group}\n\n"
-        f"Selected groups: {', '.join(selected)}\n\n"
-        "Select more groups or type /done to finish."
-    )
-    
-    # Show groups keyboard again
-    meetings = Config.load_meetings()
-    groups = list(set([m.get('group_name', 'Default') for m in meetings]))
-    
-    await update.effective_chat.send_message(
-        "Select another group:",
-        reply_markup=groups_keyboard(groups)
-    )
-    return ADDING_GROUPS
-
-
-async def done_adding_groups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Finish teacher registration."""
-    selected = context.user_data.get('selected_groups', [])
-    name = context.user_data.get('name', 'Teacher')
+    role_icon = "👨‍🏫" if role == "teacher" else "👨‍🎓"
     
     await update.message.reply_text(
-        f"✅ Registration complete!\n\n"
-        f"Name: {name}\n"
-        f"Role: Teacher\n"
-        f"Groups: {', '.join(selected)}\n\n"
-        "Commands:\n"
-        "/change - Postpone or cancel a lesson\n"
-        "/status - Check your status"
+        f"✅ <b>Registration Successful!</b>\n\n"
+        f"{role_icon} Welcome, <b>{name}</b>!\n"
+        f"Role: {role.capitalize()}\n"
+        f"{'Group: ' + group if group else ''}\n\n"
+        f"<b>Commands:</b>\n"
+        f"/schedule - View weekly schedule\n"
+        f"/today - View today's lessons\n"
+        f"/change - Postpone or cancel lesson\n"
+        f"/pay - Submit payment\n"
+        f"/status - Check your status\n"
+        f"/help - Get help",
+        parse_mode='HTML'
     )
+    
     return ConversationHandler.END
 
 
 async def cancel_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel registration."""
-    await update.message.reply_text("Registration cancelled. Use /start to try again.")
+    await update.message.reply_text(
+        "❌ Registration cancelled.\n"
+        "Use /start to try again."
+    )
     return ConversationHandler.END

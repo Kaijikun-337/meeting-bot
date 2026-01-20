@@ -115,3 +115,19 @@ def confirm_keyboard():
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
+
+def schedule_keyboard():
+    """Navigation for schedule weeks."""
+    keyboard = [
+        [
+            InlineKeyboardButton("⬅️ Previous Week", callback_data="schedule_prev"),
+            InlineKeyboardButton("Next Week ➡️", callback_data="schedule_next")
+        ],
+        [
+            InlineKeyboardButton("📍 This Week", callback_data="schedule_current")
+        ],
+        [
+            InlineKeyboardButton("📅 Today Only", callback_data="schedule_today")
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)

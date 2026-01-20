@@ -6,7 +6,7 @@ from app.config import Config
 def get_connection():
     """Get database connection."""
     conn = sqlite3.connect(Config.DATABASE_FILE)
-    conn.row_factory = sqlite3.Row  # Access columns by name
+    conn.row_factory = sqlite3.Row
     return conn
 
 
@@ -15,19 +15,22 @@ def init_database():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Users table
+    # Users table (updated)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id TEXT UNIQUE NOT NULL,
+            chat_id TEXT UNIQUE,
             name TEXT NOT NULL,
             role TEXT NOT NULL,
             group_name TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            registration_key TEXT UNIQUE NOT NULL,
+            is_active INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            activated_at TIMESTAMP
         )
     ''')
     
-    # Teachers table (links teacher to groups)
+    # Teachers table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS teacher_groups (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,6 +38,17 @@ def init_database():
             group_name TEXT NOT NULL,
             subject TEXT,
             UNIQUE(teacher_chat_id, group_name)
+        )
+    ''')
+    
+    # Pending teacher groups (before activation)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS pending_teacher_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registration_key TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            subject TEXT,
+            UNIQUE(registration_key, group_name)
         )
     ''')
     
@@ -71,7 +85,7 @@ def init_database():
         )
     ''')
     
-    # Lesson overrides (active postponements/cancellations)
+    # Lesson overrides
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS lesson_overrides (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -84,6 +98,25 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(meeting_id, original_date)
         )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS payments_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_name TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            teacher TEXT NOT NULL,
+            group_name TEXT,
+            amount REAL NOT NULL,
+            status TEXT DEFAULT 'confirmed',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Create index for fast lookups
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_payments_student 
+        ON payments_cache(student_name, subject, teacher)
     ''')
     
     conn.commit()

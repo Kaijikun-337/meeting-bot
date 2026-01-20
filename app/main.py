@@ -121,6 +121,12 @@ def main():
         print(f"✅ Created: {meeting['meet_link']}")
         meeting_bot.send_meeting_link_sync(meeting)
         print("✅ Sent to Telegram!")
+        
+    elif command == "setup-sheets":
+        print("📊 Setting up Google Sheets...")
+        from app.services.sheets_service import setup_payments_sheet
+        setup_payments_sheet()
+        print("✅ Done!")
     
     else:
         print(f"❌ Unknown command: {command}")
