@@ -1,5 +1,39 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import (
+    InlineKeyboardButton, 
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton
+)
 
+
+def main_menu_keyboard(is_admin: bool = False):
+    """Persistent main menu keyboard."""
+    
+    if is_admin:
+        keyboard = [
+            [KeyboardButton("📅 Schedule"), KeyboardButton("📅 Today")],
+            [KeyboardButton("👤 New Student"), KeyboardButton("👤 New Teacher")],
+            [KeyboardButton("👥 Users"), KeyboardButton("❓ Help")]
+        ]
+    else:
+        keyboard = [
+            [KeyboardButton("📅 Schedule"), KeyboardButton("📅 Today")],
+            [KeyboardButton("✏️ Change Lesson"), KeyboardButton("💰 Pay")],
+            [KeyboardButton("📋 Status"), KeyboardButton("❓ Help")]
+        ]
+    
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        is_persistent=True
+    )
+
+
+# Menu button texts (for detection)
+MENU_BUTTONS = [
+    "📅 Schedule", "📅 Today", "✏️ Change Lesson", "💰 Pay",
+    "📋 Status", "❓ Help", "👤 New Student", "👤 New Teacher", "👥 Users"
+]
 
 def role_keyboard():
     """Choose teacher or student."""
@@ -38,10 +72,8 @@ def lessons_keyboard(lessons: list):
         minute = lesson['minute']
         
         if lesson['status'] == 'postponed':
-            # Show it's been rescheduled
             text = f"📅 {lesson['day_name']} {lesson['date']} → {lesson['new_date']} at {hour:02d}:{minute:02d}"
         else:
-            # Normal lesson
             text = f"📚 {lesson['day_name']} {lesson['date']} at {hour:02d}:{minute:02d}"
         
         keyboard.append([InlineKeyboardButton(
@@ -70,7 +102,7 @@ def hours_keyboard():
     """Select hour."""
     keyboard = []
     row = []
-    for hour in range(8, 22):  # 8 AM to 9 PM
+    for hour in range(8, 22):
         row.append(InlineKeyboardButton(f"{hour:02d}", callback_data=f"hour_{hour}"))
         if len(row) == 4:
             keyboard.append(row)
@@ -115,6 +147,7 @@ def confirm_keyboard():
         ]
     ]
     return InlineKeyboardMarkup(keyboard)
+
 
 def schedule_keyboard():
     """Navigation for schedule weeks."""

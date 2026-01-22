@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from app.services.user_service import activate_user, is_registered, get_user
 from app.config import Config
+from app.bot.keyboards import main_menu_keyboard
 
 # States
 ENTERING_KEY = 0
@@ -11,19 +12,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     chat_id = str(update.effective_chat.id)
     
-    # Check if admin - no registration needed
+    # Check if admin
     if str(chat_id) == str(Config.ADMIN_CHAT_ID):
         await update.message.reply_text(
             "👋 <b>Welcome, Admin!</b>\n\n"
-            "<b>Admin Commands:</b>\n"
-            "/new_student - Add new student\n"
-            "/new_teacher - Add new teacher\n"
-            "/users - List all users\n\n"
-            "<b>Other Commands:</b>\n"
-            "/schedule - View schedule\n"
-            "/today - View today's lessons\n"
-            "/help - Get help",
-            parse_mode='HTML'
+            "Use the menu below to navigate.",
+            parse_mode='HTML',
+            reply_markup=main_menu_keyboard(is_admin=True)
         )
         return ConversationHandler.END
     
@@ -32,14 +27,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user = get_user(chat_id)
         await update.message.reply_text(
             f"👋 Welcome back, <b>{user['name']}</b>!\n\n"
-            "<b>Commands:</b>\n"
-            "/schedule - View weekly schedule\n"
-            "/today - View today's lessons\n"
-            "/change - Postpone or cancel lesson\n"
-            "/pay - Submit payment\n"
-            "/status - Check your status\n"
-            "/help - Get help",
-            parse_mode='HTML'
+            "Use the menu below to navigate.",
+            parse_mode='HTML',
+            reply_markup=main_menu_keyboard(is_admin=False)
         )
         return ConversationHandler.END
     
@@ -116,6 +106,9 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
     
     # Success!
+    # Find the success part and update:
+
+    # Success!
     name = result['name']
     role = result['role']
     group = result.get('group_name', '')
@@ -127,14 +120,9 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{role_icon} Welcome, <b>{name}</b>!\n"
         f"Role: {role.capitalize()}\n"
         f"{'Group: ' + group if group else ''}\n\n"
-        f"<b>Commands:</b>\n"
-        f"/schedule - View weekly schedule\n"
-        f"/today - View today's lessons\n"
-        f"/change - Postpone or cancel lesson\n"
-        f"/pay - Submit payment\n"
-        f"/status - Check your status\n"
-        f"/help - Get help",
-        parse_mode='HTML'
+        f"Use the menu below to navigate.",
+        parse_mode='HTML',
+        reply_markup=main_menu_keyboard(is_admin=False)
     )
     
     return ConversationHandler.END
