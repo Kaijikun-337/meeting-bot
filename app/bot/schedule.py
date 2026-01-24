@@ -79,6 +79,7 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
                     'minute': minute,
                     'title': meeting.get('title', 'Lesson'),
                     'group': meeting.get('group_name', ''),
+                    'teacher': meeting.get('teacher_name', ''),
                     'meeting_id': meeting['id'],
                     'status': 'normal'
                 }
@@ -111,6 +112,8 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
 
 
 def format_schedule_message(schedule: dict) -> str:
+    """Format schedule as a beautiful text calendar."""
+    
     lines = []
     lines.append("📅 <b>Your Schedule</b>")
     lines.append(f"Week of {schedule['week_start']} - {schedule['week_end']}")
@@ -118,29 +121,42 @@ def format_schedule_message(schedule: dict) -> str:
     
     for day in schedule['days']:
         today_marker = " 👈 TODAY" if day['is_today'] else ""
-        lines.append(f"┌{'─' * 36}┐")
+        lines.append(f"┌{'─' * 40}┐")
         lines.append(f"│ 📆 <b>{day['day_name']}, {day['day_short']}</b>{today_marker}")
-        lines.append(f"├{'─' * 36}┤")
+        lines.append(f"├{'─' * 40}┤")
         
         if day['lessons']:
             for lesson in day['lessons']:
+                time_str = f"{lesson['hour']:02d}:{lesson['minute']:02d}"
+                group = lesson.get('group', '')
+                teacher = lesson.get('teacher', '')
+                
+                # Build info string
+                info_parts = []
+                if group:
+                    info_parts.append(group)
+                if teacher:
+                    info_parts.append(teacher)
+                info_str = f" ({', '.join(info_parts)})" if info_parts else ""
+                
                 if lesson['status'] == 'cancelled':
-                    lines.append(f"│ ❌ <s>{lesson['time']} │ {lesson['title']}</s>")
+                    lines.append(f"│ ❌ <s>{time_str} │ {lesson['title']}{info_str}</s>")
                 elif lesson['status'] == 'postponed':
-                    lines.append(f"│ 📅 {lesson['time']} │ {lesson['title']}")
+                    lines.append(f"│ 📅 {time_str} │ {lesson['title']}{info_str}")
                     lines.append(f"│    ↳ Moved to {lesson['new_date']} at {lesson['new_time']}")
                 else:
-                    lines.append(f"│ 🕐 {lesson['time']} │ {lesson['title']}")
+                    lines.append(f"│ 🕐 {time_str} │ {lesson['title']}{info_str}")
         else:
             lines.append("│    <i>No lessons</i>")
         
-        lines.append(f"└{'─' * 36}┘")
+        lines.append(f"└{'─' * 40}┘")
         lines.append("")
     
     return "\n".join(lines)
 
 
 def format_daily_schedule(chat_id: str) -> str:
+    """Get today's schedule only."""
     from datetime import datetime
     import pytz
     from app.config import Config
@@ -166,13 +182,27 @@ def format_daily_schedule(chat_id: str) -> str:
     
     if today['lessons']:
         for lesson in today['lessons']:
+            time_str = f"{lesson['hour']:02d}:{lesson['minute']:02d}"
+            group = lesson.get('group', '')
+            teacher = lesson.get('teacher', '')
+            
+            # Build info string
+            info_parts = []
+            if group:
+                info_parts.append(group)
+            if teacher:
+                info_parts.append(teacher)
+            info_str = f"\n   👥 {', '.join(info_parts)}" if info_parts else ""
+            
             if lesson['status'] == 'cancelled':
-                lines.append(f"❌ <s>{lesson['time']} - {lesson['title']}</s>")
+                lines.append(f"❌ <s>{time_str} - {lesson['title']}</s>")
             elif lesson['status'] == 'postponed':
-                lines.append(f"📅 {lesson['time']} - {lesson['title']}")
+                lines.append(f"📅 {time_str} - {lesson['title']}{info_str}")
                 lines.append(f"   ↳ Moved to {lesson['new_date']} at {lesson['new_time']}")
             else:
-                lines.append(f"🕐 {lesson['time']} - {lesson['title']}")
+                lines.append(f"🕐 {time_str} - {lesson['title']}{info_str}")
+        
+        lines.append("")
     else:
         lines.append("🎉 No lessons today!")
     
