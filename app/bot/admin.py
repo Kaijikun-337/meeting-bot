@@ -5,6 +5,7 @@ from app.services.user_service import (
     create_pending_user, add_pending_teacher_group,
     get_all_pending_users, get_all_active_users, delete_user
 )
+from app.database.db import get_connection
 
 # States
 ENTERING_NAME, ENTERING_GROUP, ADDING_MORE_GROUPS, ENTERING_SUBJECT = range(4)
@@ -190,38 +191,29 @@ async def admin_group_decision(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /users command - list all users."""
-    chat_id = str(update.effective_chat.id)
-    
-    if not is_admin(chat_id):
-        await update.message.reply_text("❌ Admin only command.")
+    """List all registered users."""
+    if not is_admin(update.effective_user.id):
         return
     
-    active = get_all_active_users()
-    pending = get_all_pending_users()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, role, chat_id, group_name FROM users WHERE is_active = 1 ORDER BY role, name")
+    users = cursor.fetchall()
+    conn.close()
     
-    message = "👥 <b>All Users</b>\n\n"
+    if not users:
+        await update.message.reply_text("No users found.")
+        return
     
-    if active:
-        message += "<b>✅ Active Users:</b>\n"
-        for user in active:
-            role_icon = "👨‍🏫" if user['role'] == 'teacher' else "👨‍🎓"
-            group = user.get('group_name', 'N/A')
-            message += f"{role_icon} {user['name']} ({group})\n"
-        message += "\n"
+    text = "👥 <b>Registered Users</b>\n\n"
     
-    if pending:
-        message += "<b>⏳ Pending Users:</b>\n"
-        for user in pending:
-            role_icon = "👨‍🏫" if user['role'] == 'teacher' else "👨‍🎓"
-            group = user.get('group_name', 'N/A')
-            message += f"{role_icon} {user['name']} ({group})\n"
-            message += f"   Key: <code>{user['registration_key']}</code>\n"
+    for u in users:
+        icon = "👨‍🏫" if u['role'] == 'teacher' else "👨‍🎓"
+        group = f" ({u['group_name']})" if u['group_name'] else ""
+        text += f"{icon} <b>{u['name']}</b>{group}\n"
+        text += f"🆔 <code>{u['chat_id']}</code>\n\n"
     
-    if not active and not pending:
-        message += "<i>No users found.</i>"
-    
-    await update.message.reply_text(message, parse_mode='HTML')
+    await update.message.reply_text(text, parse_mode='HTML')
 
 
 async def cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -1,7 +1,7 @@
 {
   "meetings": [
     {
-      "id": "math_odd_1900_group_a",
+      "id": "math_odd_1900_group_mn",
       "title": "Математика",
       "description": "Групповые занятия по математике. Ученики: Нормина, Мубина",
       "duration_minutes": 60,
@@ -9,41 +9,57 @@
       "chat_id": "1915241420",
       "teacher_chat_id": "-",
       "subject": "math",
-      "group_name": "Группа A",
+      "group_name": "Group M/N",
       "schedule": {
         "days": ["monday", "wednesday", "friday"],
         "hour": 19,
-        "minute": 18
+        "minute": 0
       }
     },
     {
-      "id": "math_even_1800_group_a",
+      "id": "math_even_1800_group_alex",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. Ученики: Алексей",
       "duration_minutes": 60,
       "chat_id": "-100111111111",
       "teacher_chat_id": "123456789",
       "subject": "math",
-      "group_name": "Group A",
+      "group_name": "Group Alex",
       "schedule": {
         "days": ["tuesday", "thursday"],
-        "hour": 17,
-        "minute": 55
+        "hour": 18,
+        "minute": 0
       }
     },
     {
-      "id": "math_odd_2000_group_b",
+      "id": "math_odd_2000_group_aziza",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. Ученики: Азиза",
       "duration_minutes": 60,
       "chat_id": "-100222222222",
       "teacher_chat_id": "123456789",
       "subject": "math",
-      "group_name": "Group B",
+      "group_name": "Group Aziza",
+      "schedule": {
+        "days": ["monday", "wednesday", "friday"],
+        "hour": 20,
+        "minute": 0
+      }
+    },
+    {
+      "id": "math_odd_1900_group_m/n",
+      "title": "Математика",
+      "description": "Групповые занятия по математике. Ученики: Нормина, Мубина",
+      "duration_minutes": 60,
+      "teacher_name": "Sardor",
+      "chat_id": "6833180182",
+      "teacher_chat_id": "-",
+      "subject": "math",
+      "group_name": "Group M/N",
       "schedule": {
         "days": ["monday", "wednesday", "friday"],
         "hour": 19,
-        "minute": 55
+        "minute": 0
       }
     }
   ]

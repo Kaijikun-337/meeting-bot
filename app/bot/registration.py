@@ -3,6 +3,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 from app.services.user_service import activate_user, is_registered, get_user
 from app.config import Config
 from app.bot.keyboards import main_menu_keyboard
+from app.utils.localization import get_user_language, get_text
 
 # States
 ENTERING_KEY = 0
@@ -11,12 +12,12 @@ ENTERING_KEY = 0
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     chat_id = str(update.effective_chat.id)
+    lang = get_user_language(chat_id)
     
     # Check if admin
     if str(chat_id) == str(Config.ADMIN_CHAT_ID):
         await update.message.reply_text(
-            "👋 <b>Welcome, Admin!</b>\n\n"
-            "Use the menu below to navigate.",
+            get_text('admin_welcome', lang),
             parse_mode='HTML',
             reply_markup=main_menu_keyboard(is_admin=True)
         )
@@ -25,19 +26,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check if already registered
     if is_registered(chat_id):
         user = get_user(chat_id)
+        is_teacher = (user['role'] == 'teacher')
         await update.message.reply_text(
-            f"👋 Welcome back, <b>{user['name']}</b>!\n\n"
-            "Use the menu below to navigate.",
+            get_text('already_registered', lang),
             parse_mode='HTML',
-            reply_markup=main_menu_keyboard(is_admin=False)
+            reply_markup=main_menu_keyboard(is_admin=False, is_teacher=is_teacher, lang=lang)
         )
         return ConversationHandler.END
     
     await update.message.reply_text(
-        "👋 <b>Welcome to Meeting Bot!</b>\n\n"
-        "Please enter your <b>registration key</b>:\n\n"
-        "<i>Format: STU-XXXXXX or TCH-XXXXXX</i>\n\n"
-        "Don't have a key? Contact your administrator.",
+        get_text('start_welcome', lang),
         parse_mode='HTML'
     )
     
@@ -47,13 +45,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle registration key input."""
     text = update.message.text.strip()
+    lang = get_user_language(str(update.effective_chat.id))
     
     # Ignore if it looks like a command
     if text.startswith('/'):
-        await update.message.reply_text(
-            "❌ Registration cancelled.\n\n"
-            "Use /start to try again."
-        )
+        await update.message.reply_text(get_text('registration_cancelled', lang))
         return ConversationHandler.END
     
     key = text.upper()
@@ -62,9 +58,7 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Validate key format
     if not (key.startswith("STU-") or key.startswith("TCH-")):
         await update.message.reply_text(
-            "❌ Invalid key format.\n\n"
-            "Keys look like: <code>STU-ABC123</code> or <code>TCH-XYZ789</code>\n\n"
-            "Please try again or /cancel:",
+            get_text('invalid_key_format', lang),
             parse_mode='HTML'
         )
         return ENTERING_KEY
@@ -77,26 +71,21 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         if error == "invalid_key":
             await update.message.reply_text(
-                "❌ <b>Invalid key.</b>\n\n"
-                "This key doesn't exist.\n"
-                "Please check and try again:",
+                get_text('invalid_key', lang),
                 parse_mode='HTML'
             )
             return ENTERING_KEY
         
         elif error == "key_already_used":
             await update.message.reply_text(
-                "❌ <b>Key already used.</b>\n\n"
-                "This key has been used by another account.\n"
-                "Contact your administrator for a new key.",
+                get_text('key_already_used', lang),
                 parse_mode='HTML'
             )
             return ConversationHandler.END
         
         elif error == "already_registered":
             await update.message.reply_text(
-                "❌ <b>Already registered.</b>\n\n"
-                "You already have an active account.",
+                get_text('already_registered', lang),
                 parse_mode='HTML'
             )
             return ConversationHandler.END
@@ -106,23 +95,28 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return ConversationHandler.END
     
     # Success!
-    # Find the success part and update:
-
-    # Success!
     name = result['name']
     role = result['role']
     group = result.get('group_name', '')
     
+    role_text = get_text('role_teacher', lang) if role == 'teacher' else get_text('role_student', lang)
     role_icon = "👨‍🏫" if role == "teacher" else "👨‍🎓"
     
+    group_text = f"\n{get_text('status_group', lang)}: {group}" if group else ""
+    
+    msg = get_text('registration_success', lang).format(
+        icon=role_icon,
+        name=name,
+        role=role_text,
+        group=group_text
+    )
+    
+    is_teacher = (role == 'teacher')  # Check role
+
     await update.message.reply_text(
-        f"✅ <b>Registration Successful!</b>\n\n"
-        f"{role_icon} Welcome, <b>{name}</b>!\n"
-        f"Role: {role.capitalize()}\n"
-        f"{'Group: ' + group if group else ''}\n\n"
-        f"Use the menu below to navigate.",
+        msg,
         parse_mode='HTML',
-        reply_markup=main_menu_keyboard(is_admin=False)
+        reply_markup=main_menu_keyboard(is_admin=False, is_teacher=is_teacher, lang=lang)
     )
     
     return ConversationHandler.END
@@ -130,8 +124,6 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancel_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel registration."""
-    await update.message.reply_text(
-        "❌ Registration cancelled.\n"
-        "Use /start to try again."
-    )
+    lang = get_user_language(str(update.effective_chat.id))
+    await update.message.reply_text(get_text('registration_cancelled', lang))
     return ConversationHandler.END

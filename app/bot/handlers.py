@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    ConversationHandler, MessageHandler, filters
+    ConversationHandler, MessageHandler, filters, ContextTypes
 )
 from app.bot.registration import (
     start_command, key_entered, cancel_registration,
@@ -9,10 +9,9 @@ from app.bot.registration import (
 )
 from app.bot.change_lesson import (
     change_command, lesson_selected, change_type_selected,
-    day_selected, hour_selected, minute_selected,
-    confirm_action, handle_approval, cancel_change,
-    SELECTING_LESSON, SELECTING_CHANGE_TYPE, SELECTING_DAY,
-    SELECTING_HOUR, SELECTING_MINUTE, CONFIRMING
+    confirm_action, handle_approval, cancel_change, slot_selected,
+    SELECTING_LESSON, SELECTING_CHANGE_TYPE, SELECTING_SLOT,
+    CONFIRMING
 )
 from app.bot.schedule import (
     schedule_command, schedule_navigation, today_command
@@ -29,98 +28,123 @@ from app.bot.admin import (
     ENTERING_NAME, ENTERING_GROUP as ADMIN_ENTERING_GROUP,
     ADDING_MORE_GROUPS, ENTERING_SUBJECT as ADMIN_ENTERING_SUBJECT
 )
-from app.bot.menu_handler import handle_menu_buttons, cancel_on_menu_button
+from app.bot.menu_handler import handle_menu_buttons, cancel_on_menu_button, is_button
 from app.bot.keyboards import main_menu_keyboard, MENU_BUTTONS
 from app.services.user_service import get_user, get_teacher_groups
 from app.config import Config
+from app.bot.availability import get_availability_conversation_handler
+from app.bot.language import register_language_handlers
+from app.bot.error_handler import error_handler
+from app.utils.localization import get_text, get_user_language
+from app.bot.homework import get_homework_conversation_handler
 
+
+# ═══════════════════════════════════════════════════════════
+# MULTILINGUAL BUTTON FILTERS
+# ═══════════════════════════════════════════════════════════
+
+class ChangeLessonButtonFilter(filters.MessageFilter):
+    """Matches Change Lesson button in any language."""
+    def filter(self, message):
+        if message.text:
+            return is_button(message.text, 'btn_change_lesson')
+        return False
+
+
+class PayButtonFilter(filters.MessageFilter):
+    """Matches Pay button in any language."""
+    def filter(self, message):
+        if message.text:
+            return is_button(message.text, 'btn_pay')
+        return False
+
+class StatusButtonFilter(filters.MessageFilter):
+    """Matches Status button in any language."""
+    def filter(self, message):
+        if message.text:
+            return is_button(message.text, 'btn_status')
+        return False
+
+
+class AvailabilityButtonFilter(filters.MessageFilter):
+    """Matches Availability button in any language."""
+    def filter(self, message):
+        if message.text:
+            return is_button(message.text, 'btn_availability')
+        return False
+
+# Create filter instances
+change_lesson_button = ChangeLessonButtonFilter()
+pay_button = PayButtonFilter()
+status_button = StatusButtonFilter()
+availability_button = AvailabilityButtonFilter()
 
 # Filter for menu buttons
 menu_button_filter = filters.TEXT & filters.Regex(f'^({"|".join(MENU_BUTTONS)})$')
 
 
-async def status_command(update: Update, context):
+# ═══════════════════════════════════════════════════════════
+# SIMPLE COMMAND HANDLERS
+# ═══════════════════════════════════════════════════════════
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show user status."""
-    chat_id = str(update.effective_chat.id)
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
+    
     user = get_user(chat_id)
-    is_admin_user = str(chat_id) == str(Config.ADMIN_CHAT_ID)
     
-    if not user and not is_admin_user:
-        await update.message.reply_text(
-            "❌ You're not registered.\n"
-            "Use /start to register."
-        )
+    if not user:
+        await update.message.reply_text(get_text('not_registered', lang))
         return
     
-    if is_admin_user and not user:
-        await update.message.reply_text(
-            "📋 <b>Admin Status</b>\n\n"
-            "You are the administrator.",
-            parse_mode='HTML',
-            reply_markup=main_menu_keyboard(is_admin=True)
-        )
-        return
+    role_key = 'role_teacher' if user['role'] == 'teacher' else 'role_student'
     
-    role = user['role'].capitalize()
-    name = user['name']
+    lines = [
+        f"<b>{get_text('your_status', lang)}</b>",
+        "",
+        f"👤 {get_text('status_name', lang)}: {user['name']}",
+        f"🎭 {get_text('status_role', lang)}: {get_text(role_key, lang)}",
+    ]
     
-    if user['role'] == 'teacher':
-        groups = get_teacher_groups(chat_id)
-        if groups:
-            group_names = [g['group_name'] for g in groups]
-            group_text = ", ".join(group_names)
-        else:
-            group_text = "No groups assigned"
-        
-        await update.message.reply_text(
-            f"📋 <b>Your Status</b>\n\n"
-            f"👤 Name: {name}\n"
-            f"🎭 Role: {role}\n"
-            f"📚 Groups: {group_text}",
-            parse_mode='HTML',
-            reply_markup=main_menu_keyboard(is_admin=is_admin_user)
-        )
-    else:
-        group = user.get('group_name', 'Not assigned')
-        
-        await update.message.reply_text(
-            f"📋 <b>Your Status</b>\n\n"
-            f"👤 Name: {name}\n"
-            f"🎭 Role: {role}\n"
-            f"📚 Group: {group}",
-            parse_mode='HTML',
-            reply_markup=main_menu_keyboard(is_admin=is_admin_user)
-        )
-
-
-async def help_command(update: Update, context):
-    """Show help."""
-    chat_id = str(update.effective_chat.id)
-    is_admin_user = str(chat_id) == str(Config.ADMIN_CHAT_ID)
+    if user.get('group_name'):
+        lines.append(f"👥 {get_text('status_group', lang)}: {user['group_name']}")
     
-    admin_commands = ""
-    if is_admin_user:
-        admin_commands = (
-            "\n<b>Admin Commands:</b>\n"
-            "👤 New Student - Add student\n"
-            "👤 New Teacher - Add teacher\n"
-            "👥 Users - List all users\n"
-        )
+    if user.get('activated_at'):
+        lines.append(f"📅 {get_text('status_registered', lang)}: {user['activated_at'][:10]}")
     
     await update.message.reply_text(
-        "🤖 <b>Meeting Bot Help</b>\n\n"
-        "<b>Menu Buttons:</b>\n"
-        "📅 Schedule - View weekly schedule\n"
-        "📅 Today - View today's lessons\n"
-        "✏️ Change Lesson - Postpone or cancel\n"
-        "💰 Pay - Submit payment\n"
-        "📋 Status - View your status\n"
-        "❓ Help - Show this help"
-        f"{admin_commands}",
-        parse_mode='HTML',
-        reply_markup=main_menu_keyboard(is_admin=is_admin_user)
+        "\n".join(lines),
+        parse_mode='HTML'
     )
 
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show help message."""
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
+    
+    lines = [
+        f"<b>{get_text('help_title', lang)}</b>",
+        "",
+        get_text('help_schedule', lang),
+        get_text('help_today', lang),
+        get_text('help_change', lang),
+        get_text('help_pay', lang),
+        get_text('help_status', lang),
+        get_text('help_language', lang),
+        get_text('help_availability', lang),
+    ]
+    
+    await update.message.reply_text(
+        "\n".join(lines),
+        parse_mode='HTML'
+    )
+
+
+# ═══════════════════════════════════════════════════════════
+# CREATE BOT APPLICATION
+# ═══════════════════════════════════════════════════════════
 
 def create_bot_application() -> Application:
     """Create and configure the bot application."""
@@ -131,6 +155,10 @@ def create_bot_application() -> Application:
         CommandHandler('cancel', cancel_registration),
         MessageHandler(menu_button_filter, cancel_on_menu_button)
     ]
+    
+    # ═══════════════════════════════════════════════════════════
+    # CONVERSATION HANDLERS
+    # ═══════════════════════════════════════════════════════════
     
     # Registration conversation
     registration_handler = ConversationHandler(
@@ -176,14 +204,12 @@ def create_bot_application() -> Application:
     change_handler = ConversationHandler(
         entry_points=[
             CommandHandler('change', change_command),
-            MessageHandler(filters.Regex('^✏️ Change Lesson$'), change_command)
+            MessageHandler(change_lesson_button, change_command)
         ],
         states={
             SELECTING_LESSON: [CallbackQueryHandler(lesson_selected)],
             SELECTING_CHANGE_TYPE: [CallbackQueryHandler(change_type_selected)],
-            SELECTING_DAY: [CallbackQueryHandler(day_selected)],
-            SELECTING_HOUR: [CallbackQueryHandler(hour_selected)],
-            SELECTING_MINUTE: [CallbackQueryHandler(minute_selected)],
+            SELECTING_SLOT: [CallbackQueryHandler(slot_selected)],
             CONFIRMING: [CallbackQueryHandler(confirm_action)]
         },
         fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_change)],
@@ -194,7 +220,7 @@ def create_bot_application() -> Application:
     payment_handler = ConversationHandler(
         entry_points=[
             CommandHandler('pay', pay_command),
-            MessageHandler(filters.Regex('^💰 Pay$'), pay_command)
+            MessageHandler(pay_button, pay_command)
         ],
         states={
             SELECTING_COURSE: [CallbackQueryHandler(course_selected, pattern=r'^(course_|payment_)')],
@@ -206,12 +232,18 @@ def create_bot_application() -> Application:
         per_message=False
     )
     
-    # Add handlers (order matters!)
+    # ═══════════════════════════════════════════════════════════
+    # REGISTER HANDLERS (order matters!)
+    # ═══════════════════════════════════════════════════════════
+    
+    # Conversation handlers first
     app.add_handler(registration_handler)
     app.add_handler(new_student_handler)
     app.add_handler(new_teacher_handler)
     app.add_handler(change_handler)
     app.add_handler(payment_handler)
+    app.add_handler(get_availability_conversation_handler())
+    app.add_handler(get_homework_conversation_handler())
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))
@@ -220,6 +252,9 @@ def create_bot_application() -> Application:
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('users', list_users_command))
     
+    # Language handlers
+    register_language_handlers(app)
+    
     # Callback handlers
     app.add_handler(CallbackQueryHandler(handle_approval, pattern=r'^(approve_|reject_)'))
     app.add_handler(CallbackQueryHandler(schedule_navigation, pattern=r'^schedule_'))
@@ -227,5 +262,8 @@ def create_bot_application() -> Application:
     
     # Menu button handler (catches remaining menu buttons)
     app.add_handler(MessageHandler(menu_button_filter, handle_menu_buttons))
+    
+    # Error handler (always last)
+    app.add_error_handler(error_handler)
     
     return app

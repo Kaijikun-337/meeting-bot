@@ -7,6 +7,7 @@ from app.jitsi_meet import create_jitsi_meeting
 from app.telegram_bot import meeting_bot
 from app.services.lesson_service import check_lesson_status
 from app.services.request_service import cleanup_expired_requests
+from app.services.lesson_service import get_all_postponed_to_date, check_lesson_status
 
 
 DAY_MAP = {
@@ -30,7 +31,7 @@ def create_meeting_job(meeting_config: dict):
         return
     
     if status['status'] == 'postponed':
-        print(f"⏭️ Skipping {meeting_config['title']} - POSTPONED to {status['new_date']}")
+        print(f"⏭️ Skipping {meeting_config['title']} - POSTPONED to {status.get('new_date', 'unknown')}")
         return
     
     # Create meeting
@@ -44,7 +45,134 @@ def create_meeting_job(meeting_config: dict):
     meeting_bot.send_meeting_link_sync(meeting, chat_id)
     
     print(f"✅ Sent to chat: {chat_id}")
+    
+def check_and_schedule_postponed_lessons():
+    """Check for lessons postponed to today and schedule them."""
+    from app.services.lesson_service import get_all_postponed_to_date
+    
+    tz = pytz.timezone(Config.TIMEZONE)
+    today = datetime.now(tz).strftime("%Y-%m-%d")
+    
+    postponed_today = get_all_postponed_to_date(today)
+    
+    for override in postponed_today:
+        meeting_id = override['meeting_id']
+        new_hour = override['new_hour']
+        new_minute = override['new_minute'] or 0
+        
+        # Find the meeting config
+        meeting_config = None
+        for m in load_meetings():  # You'll need to have this function
+            if m['id'] == meeting_id:
+                meeting_config = m
+                break
+        
+        if not meeting_config:
+            print(f"⚠️ Meeting config not found for {meeting_id}")
+            continue
+        
+        # Schedule at new time
+        run_time = datetime.now(tz).replace(hour=new_hour, minute=new_minute, second=0, microsecond=0)
+        
+        if run_time > datetime.now(tz):
+            print(f"📅 Scheduling postponed lesson: {meeting_config['title']} at {new_hour:02d}:{new_minute:02d}")
+            scheduler.add_job(
+                create_postponed_meeting_job,
+                'date',
+                run_date=run_time,
+                args=[meeting_config],
+                id=f"postponed_{meeting_id}_{today}",
+                replace_existing=True
+            )
 
+
+def create_postponed_meeting_job(meeting_config: dict):
+    """Send meeting link for a postponed lesson."""
+    print(f"⏰ Creating POSTPONED meeting: {meeting_config['title']}")
+    
+    meeting = create_jitsi_meeting(title=meeting_config['title'])
+    
+    print(f"✅ Meeting created: {meeting['meet_link']}")
+    
+    chat_id = meeting_config.get('chat_id')
+    meeting_bot.send_meeting_link_sync(meeting, chat_id)
+    
+    print(f"✅ Sent to chat: {chat_id}")
+
+
+def load_meetings() -> list:
+    """Load meetings from JSON file."""
+    import json
+    try:
+        with open('meetings.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get('meetings', [])
+    except Exception as e:
+        print(f"Error loading meetings: {e}")
+        return []
+
+
+def check_and_schedule_postponed_lessons():
+    """Check for lessons postponed to today and schedule them."""
+    tz = pytz.timezone(Config.TIMEZONE)
+    now = datetime.now(tz)
+    today = now.strftime("%Y-%m-%d")
+    
+    postponed_today = get_all_postponed_to_date(today)
+    
+    if not postponed_today:
+        print(f"📅 No postponed lessons for today ({today})")
+        return
+    
+    meetings = load_meetings()
+    
+    for override in postponed_today:
+        meeting_id = override['meeting_id']
+        new_hour = override['new_hour']
+        new_minute = override['new_minute'] or 0
+        
+        # Find the meeting config
+        meeting_config = None
+        for m in meetings:
+            if m['id'] == meeting_id:
+                meeting_config = m
+                break
+        
+        if not meeting_config:
+            print(f"⚠️ Meeting config not found for {meeting_id}")
+            continue
+        
+        # Check if the time has passed
+        run_time = now.replace(hour=new_hour, minute=new_minute, second=0, microsecond=0)
+        
+        if run_time > now:
+            print(f"📅 Scheduling postponed lesson: {meeting_config['title']} at {new_hour:02d}:{new_minute:02d}")
+            
+            global scheduler
+            scheduler.add_job(
+                create_postponed_meeting_job,
+                'date',
+                run_date=run_time,
+                args=[meeting_config],
+                id=f"postponed_{meeting_id}_{today}",
+                replace_existing=True
+            )
+        else:
+            print(f"⏭️ Postponed lesson time already passed: {meeting_config['title']} at {new_hour:02d}:{new_minute:02d}")
+
+
+def create_postponed_meeting_job(meeting_config: dict):
+    """Send meeting link for a postponed lesson."""
+    print(f"⏰ Creating POSTPONED meeting: {meeting_config['title']}")
+    
+    meeting = create_jitsi_meeting(title=meeting_config['title'])
+    
+    print(f"✅ Meeting created: {meeting['meet_link']}")
+    
+    chat_id = meeting_config.get('chat_id')
+    meeting_bot.send_meeting_link_sync(meeting, chat_id)
+    
+    print(f"✅ Sent POSTPONED meeting to chat: {chat_id}")
 
 def setup_scheduler() -> BackgroundScheduler:
     """Create and configure scheduler."""
@@ -58,6 +186,15 @@ def setup_scheduler() -> BackgroundScheduler:
     
     print(f"📅 Loading {len(meetings)} meetings...")
     print("=" * 50)
+    
+    scheduler.add_job(
+        check_and_schedule_postponed_lessons,
+        'cron',
+        hour=0,
+        minute=5,
+        id='check_postponed_daily',
+        replace_existing=True
+    )
     
     for meeting_config in meetings:
         schedule = meeting_config.get('schedule', {})

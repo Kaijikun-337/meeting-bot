@@ -59,65 +59,47 @@ def get_request(request_id: str) -> dict:
 
 
 def add_approval(request_id: str, approver_chat_id: str, approved: bool) -> dict:
-    """Add an approval/rejection to a request. Returns updated request status."""
     conn = get_connection()
     cursor = conn.cursor()
     
-    try:
-        # Check if already voted
-        cursor.execute('''
-            SELECT * FROM approvals 
-            WHERE request_id = ? AND approver_chat_id = ?
-        ''', (request_id, str(approver_chat_id)))
-        
-        if cursor.fetchone():
-            return {"error": "already_voted"}
-        
-        # Add vote
-        cursor.execute('''
-            INSERT INTO approvals (request_id, approver_chat_id, approved)
-            VALUES (?, ?, ?)
-        ''', (request_id, str(approver_chat_id), 1 if approved else 0))
-        
-        if approved:
-            # Increment approval count
-            cursor.execute('''
-                UPDATE change_requests 
-                SET approvals_received = approvals_received + 1
-                WHERE request_id = ?
-            ''', (request_id,))
-        else:
-            # Rejected - mark request as rejected
-            cursor.execute('''
-                UPDATE change_requests SET status = 'rejected'
-                WHERE request_id = ?
-            ''', (request_id,))
-            conn.commit()
-            return {"status": "rejected"}
-        
-        # Check if all approvals received
-        cursor.execute('''
-            SELECT approvals_needed, approvals_received 
-            FROM change_requests WHERE request_id = ?
-        ''', (request_id,))
-        
-        row = cursor.fetchone()
-        if row['approvals_received'] >= row['approvals_needed']:
-            cursor.execute('''
-                UPDATE change_requests SET status = 'approved'
-                WHERE request_id = ?
-            ''', (request_id,))
-            conn.commit()
-            return {"status": "approved"}
-        
-        conn.commit()
-        return {"status": "pending", "remaining": row['approvals_needed'] - row['approvals_received']}
-        
-    except Exception as e:
-        print(f"❌ Approval error: {e}")
-        return {"error": str(e)}
-    finally:
+    # Check if already voted
+    cursor.execute('SELECT id FROM approvals WHERE request_id = ? AND approver_chat_id = ?', (request_id, approver_chat_id))
+    if cursor.fetchone():
         conn.close()
+        return {"error": "already_voted"}
+    
+    # Record vote
+    cursor.execute('''
+        INSERT INTO approvals (request_id, approver_chat_id, approved)
+        VALUES (?, ?, ?)
+    ''', (request_id, approver_chat_id, 1 if approved else 0))
+    
+    # If REJECTED (vote is NO) -> Immediately fail the request
+    if not approved:
+        cursor.execute("UPDATE change_requests SET status = 'rejected' WHERE request_id = ?", (request_id,))
+        conn.commit()
+        conn.close()
+        return {"status": "rejected"}
+    
+    # Check if we have enough approvals
+    cursor.execute('SELECT approvals_needed, approvals_received FROM change_requests WHERE request_id = ?', (request_id,))
+    req = cursor.fetchone()
+    
+    needed = req['approvals_needed']
+    received = req['approvals_received'] + 1  # Add the one we just inserted
+    
+    # Update received count
+    cursor.execute("UPDATE change_requests SET approvals_received = ? WHERE request_id = ?", (received, request_id))
+    
+    if received >= needed:
+        cursor.execute("UPDATE change_requests SET status = 'approved' WHERE request_id = ?", (request_id,))
+        conn.commit()
+        conn.close()
+        return {"status": "approved"}
+    
+    conn.commit()
+    conn.close()
+    return {"status": "pending", "remaining": needed - received}
 
 
 def get_pending_requests_for_user(chat_id: str) -> list:

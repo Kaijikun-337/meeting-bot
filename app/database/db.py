@@ -25,10 +25,16 @@ def init_database():
             group_name TEXT,
             registration_key TEXT UNIQUE NOT NULL,
             is_active INTEGER DEFAULT 0,
+            language TEXT DEFAULT 'en',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             activated_at TIMESTAMP
         )
     ''')
+        # Add language column to existing table
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN language TEXT DEFAULT 'en'")
+    except:
+        pass  # Column already exists
     
     # Teachers table
     cursor.execute('''
@@ -117,6 +123,19 @@ def init_database():
     cursor.execute('''
         CREATE INDEX IF NOT EXISTS idx_payments_student 
         ON payments_cache(student_name, subject, teacher)
+    ''')
+
+    # Teacher availability (date-specific with time ranges)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS teacher_availability (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher_chat_id TEXT NOT NULL,
+            available_date TEXT NOT NULL,
+            start_hour INTEGER NOT NULL,
+            end_hour INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(teacher_chat_id, available_date)
+        )
     ''')
     
     conn.commit()

@@ -9,6 +9,7 @@ from app.services.payment_cache import (
     get_student_payment_summary_cached
 )
 from app.config import Config
+from app.utils.localization import get_user_language, get_text
 
 # States
 SELECTING_COURSE, ENTERING_AMOUNT, UPLOADING_PHOTO, CONFIRMING = range(4)
@@ -26,7 +27,6 @@ def get_student_courses(chat_id: str) -> list:
     group_name = user.get('group_name', '')
     student_name = user.get('name', '')
     
-    # Load from price_list.json (local file - fast!)
     price_list = Config.load_price_list()
     
     courses = []
@@ -38,7 +38,6 @@ def get_student_courses(chat_id: str) -> list:
             price = course.get('price', price_list.get('default_price', 100))
             currency = course.get('currency', price_list.get('currency', 'USD'))
             
-            # Get payment info from LOCAL CACHE (fast!)
             total_paid = get_cached_total_paid(student_name, subject, teacher)
             remaining = max(0, price - total_paid)
             completed = total_paid >= price
@@ -57,20 +56,20 @@ def get_student_courses(chat_id: str) -> list:
     return courses
 
 
-def courses_keyboard(courses: list):
+def courses_keyboard(courses: list, lang: str):
     """Create keyboard with course options."""
     keyboard = []
     
     for i, course in enumerate(courses):
         if course['completed']:
-            status = "✅ Fully Paid"
+            status = get_text('fully_paid', lang)
         else:
-            status = f"${course['remaining']:.0f} left"
+            status = f"${course['remaining']:.0f} {get_text('remaining', lang)}"
         
         text = f"📚 {course['subject']} - {course['teacher']} ({status})"
         keyboard.append([InlineKeyboardButton(text, callback_data=f"course_{i}")])
     
-    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="payment_cancel")])
+    keyboard.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="payment_cancel")])
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -78,26 +77,19 @@ def courses_keyboard(courses: list):
 async def pay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /pay command."""
     chat_id = str(update.effective_chat.id)
+    lang = get_user_language(chat_id)
     user = get_user(chat_id)
     
     if not user:
-        await update.message.reply_text(
-            "❌ You're not registered!\n"
-            "Use /start to register first."
-        )
+        await update.message.reply_text(get_text('not_registered', lang))
         return ConversationHandler.END
     
-    # Show typing indicator
     await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
     
-    # Get student's courses (now uses cache - fast!)
     courses = get_student_courses(chat_id)
     
     if not courses:
-        await update.message.reply_text(
-            "❌ No courses found for your group.\n\n"
-            "Please contact your administrator."
-        )
+        await update.message.reply_text(get_text('no_courses', lang))
         return ConversationHandler.END
     
     context.user_data['payment'] = {
@@ -106,32 +98,32 @@ async def pay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'courses': courses
     }
     
-    message = f"💰 <b>Payment Submission</b>\n\n"
-    message += f"👤 Student: <b>{user['name']}</b>\n"
-    message += f"📖 Group: <b>{user.get('group_name', 'N/A')}</b>\n\n"
-    message += "<b>Your Courses:</b>\n\n"
+    message = f"💰 <b>{get_text('payment_title', lang)}</b>\n\n"
+    message += f"👤 {get_text('status_name', lang)}: <b>{user['name']}</b>\n"
+    message += f"📖 {get_text('status_group', lang)}: <b>{user.get('group_name', 'N/A')}</b>\n\n"
+    message += f"<b>{get_text('your_courses', lang)}:</b>\n\n"
     
     for course in courses:
         if course['completed']:
             status_icon = "✅"
-            status_text = "Fully Paid!"
+            status_text = get_text('fully_paid', lang)
         else:
             status_icon = "📊"
-            status_text = f"Remaining: ${course['remaining']:.2f}"
+            status_text = f"{get_text('remaining', lang)}: ${course['remaining']:.2f}"
         
         message += (
             f"📚 <b>{course['subject']}</b> - {course['teacher']}\n"
-            f"   💵 Course: ${course['course_price']:.2f}\n"
-            f"   💰 Paid: ${course['total_paid']:.2f}\n"
+            f"   💵 {get_text('course_price', lang)}: ${course['course_price']:.2f}\n"
+            f"   💰 {get_text('paid', lang)}: ${course['total_paid']:.2f}\n"
             f"   {status_icon} {status_text}\n\n"
         )
     
-    message += "<b>Select a course to pay:</b>"
+    message += f"<b>{get_text('select_course', lang)}</b>"
     
     await update.message.reply_text(
         message,
         parse_mode='HTML',
-        reply_markup=courses_keyboard(courses)
+        reply_markup=courses_keyboard(courses, lang)  # ← Pass lang
     )
     
     return SELECTING_COURSE
@@ -142,15 +134,18 @@ async def course_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
+    
     if query.data == "payment_cancel":
-        await query.edit_message_text("❌ Payment cancelled.")
+        await query.edit_message_text(get_text('cancelled', lang))
         return ConversationHandler.END
     
     course_idx = int(query.data.replace("course_", ""))
     courses = context.user_data['payment']['courses']
     
     if course_idx >= len(courses):
-        await query.edit_message_text("❌ Invalid selection.")
+        await query.edit_message_text(get_text('cancelled', lang))
         return ConversationHandler.END
     
     course = courses[course_idx]
@@ -158,19 +153,18 @@ async def course_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if course['completed']:
         await query.edit_message_text(
-            f"✅ <b>{course['subject']}</b> is already fully paid!\n\n"
-            f"Use /pay to select another course.",
+            get_text('course_already_paid', lang).format(subject=course['subject']),
             parse_mode='HTML'
         )
         return ConversationHandler.END
     
     await query.edit_message_text(
         f"📚 <b>{course['subject']}</b> - {course['teacher']}\n\n"
-        f"💵 Course Price: <b>${course['course_price']:.2f}</b>\n"
-        f"✅ Already Paid: <b>${course['total_paid']:.2f}</b>\n"
-        f"📊 Remaining: <b>${course['remaining']:.2f}</b>\n\n"
-        f"💰 <b>How much are you paying now?</b>\n\n"
-        f"<i>Enter amount (e.g., 50 or {course['remaining']:.0f}):</i>",
+        f"💵 {get_text('course_price', lang)}: <b>${course['course_price']:.2f}</b>\n"
+        f"✅ {get_text('already_paid', lang)}: <b>${course['total_paid']:.2f}</b>\n"
+        f"📊 {get_text('remaining', lang)}: <b>${course['remaining']:.2f}</b>\n\n"
+        f"💰 <b>{get_text('enter_amount', lang)}</b>\n\n"
+        f"<i>{get_text('enter_amount_hint', lang).format(amount=int(course['remaining']))}</i>",
         parse_mode='HTML'
     )
     
@@ -179,10 +173,12 @@ async def course_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def amount_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle amount input."""
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
     text = update.message.text.strip()
     
     if text.startswith('/'):
-        await update.message.reply_text("❌ Payment cancelled.")
+        await update.message.reply_text(get_text('cancelled', lang))
         return ConversationHandler.END
     
     amount_text = text.replace('$', '').replace(',', '')
@@ -191,39 +187,38 @@ async def amount_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
         amount = float(amount_text)
     except ValueError:
         await update.message.reply_text(
-            "❌ Invalid amount. Please enter a number:\n\n"
-            "<i>Example: 50 or 100.50</i>",
+            get_text('invalid_amount', lang),
             parse_mode='HTML'
         )
         return ENTERING_AMOUNT
     
     if amount <= 0:
         await update.message.reply_text(
-            "❌ Amount must be greater than 0.\n\n"
-            "Please enter a valid amount:",
+            get_text('amount_must_be_positive', lang),
             parse_mode='HTML'
         )
         return ENTERING_AMOUNT
     
     course = context.user_data['payment']['selected_course']
     
+    new_total = course['total_paid'] + amount
+    new_remaining = max(0, course['course_price'] - new_total)
+    
     if amount > course['remaining']:
         await update.message.reply_text(
-            f"⚠️ You're paying <b>${amount:.2f}</b> but only <b>${course['remaining']:.2f}</b> is remaining.\n\n"
-            f"This is fine if intentional.\n\n"
-            f"📸 <b>Send a photo of your payment receipt:</b>",
+            get_text('overpaying_warning', lang).format(
+                amount=amount,
+                remaining=course['remaining']
+            ) + f"\n\n📸 <b>{get_text('upload_receipt', lang)}</b>",
             parse_mode='HTML'
         )
     else:
-        new_total = course['total_paid'] + amount
-        new_remaining = max(0, course['course_price'] - new_total)
-        
         await update.message.reply_text(
-            f"💰 Payment: <b>${amount:.2f}</b>\n\n"
-            f"After this payment:\n"
-            f"   ✅ Total Paid: ${new_total:.2f}\n"
-            f"   📊 Remaining: ${new_remaining:.2f}\n\n"
-            f"📸 <b>Send a photo of your payment receipt:</b>",
+            f"💰 {get_text('payment_amount', lang)}: <b>${amount:.2f}</b>\n\n"
+            f"{get_text('after_payment', lang)}:\n"
+            f"   ✅ {get_text('total_paid', lang)}: ${new_total:.2f}\n"
+            f"   📊 {get_text('remaining', lang)}: ${new_remaining:.2f}\n\n"
+            f"📸 <b>{get_text('upload_receipt', lang)}</b>",
             parse_mode='HTML'
         )
     
@@ -234,9 +229,12 @@ async def amount_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def photo_uploaded(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle photo upload."""
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
+    
     if not update.message.photo:
         await update.message.reply_text(
-            "❌ Please send a <b>photo</b> of your payment receipt.",
+            get_text('please_send_photo', lang),
             parse_mode='HTML'
         )
         return UPLOADING_PHOTO
@@ -250,24 +248,24 @@ async def photo_uploaded(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     new_total = course['total_paid'] + amount
     new_remaining = max(0, course['course_price'] - new_total)
-    fully_paid = "✅ Yes!" if new_total >= course['course_price'] else f"❌ No (${new_remaining:.2f} left)"
+    fully_paid = get_text('yes', lang) if new_total >= course['course_price'] else f"{get_text('no', lang)} (${new_remaining:.2f} {get_text('remaining', lang).lower()})"
     
     await update.message.reply_text(
-        f"📋 <b>Payment Summary</b>\n\n"
-        f"👤 Student: {payment['student_name']}\n"
-        f"📚 Course: {course['subject']}\n"
-        f"👨‍🏫 Teacher: {course['teacher']}\n"
-        f"📖 Group: {course['group']}\n\n"
-        f"💵 Course Price: ${course['course_price']:.2f}\n"
-        f"💰 This Payment: ${amount:.2f}\n"
-        f"✅ Total After: ${new_total:.2f}\n"
-        f"🎯 Fully Paid: {fully_paid}\n\n"
-        f"<b>Submit this payment?</b>",
+        f"📋 <b>{get_text('payment_summary', lang)}</b>\n\n"
+        f"👤 {get_text('status_name', lang)}: {payment['student_name']}\n"
+        f"📚 {get_text('course', lang)}: {course['subject']}\n"
+        f"👨‍🏫 {get_text('teacher', lang)}: {course['teacher']}\n"
+        f"📖 {get_text('status_group', lang)}: {course['group']}\n\n"
+        f"💵 {get_text('course_price', lang)}: ${course['course_price']:.2f}\n"
+        f"💰 {get_text('this_payment', lang)}: ${amount:.2f}\n"
+        f"✅ {get_text('total_after', lang)}: ${new_total:.2f}\n"
+        f"🎯 {get_text('fully_paid', lang)}: {fully_paid}\n\n"
+        f"<b>{get_text('submit_payment_question', lang)}</b>",
         parse_mode='HTML',
         reply_markup=InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("✅ Submit", callback_data="payment_submit"),
-                InlineKeyboardButton("❌ Cancel", callback_data="payment_cancel")
+                InlineKeyboardButton(get_text('btn_submit', lang), callback_data="payment_submit"),
+                InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="payment_cancel")
             ]
         ])
     )
@@ -280,8 +278,11 @@ async def payment_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
+    
     if query.data == "payment_cancel":
-        await query.edit_message_text("❌ Payment cancelled.")
+        await query.edit_message_text(get_text('cancelled', lang))
         return ConversationHandler.END
     
     payment = context.user_data['payment']
@@ -342,15 +343,13 @@ async def payment_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         await query.edit_message_text(
-            "✅ <b>Payment submitted!</b>\n\n"
-            "Your payment is being reviewed.\n"
-            "You'll receive a notification once confirmed.",
+            get_text('payment_submitted', lang),
             parse_mode='HTML'
         )
         
     except Exception as e:
         print(f"❌ Error: {e}")
-        await query.edit_message_text("❌ Error submitting. Please try again.")
+        await query.edit_message_text(get_text('error_occurred', lang))
     
     return ConversationHandler.END
 
@@ -360,7 +359,6 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()
     
-    # Show typing
     await context.bot.send_chat_action(
         chat_id=query.message.chat_id, 
         action=ChatAction.TYPING
@@ -383,9 +381,10 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_caption("❌ Payment not found or already processed.")
         return
     
+    student_lang = get_user_language(payment['student_chat_id'])
+    
     if approved:
         try:
-            # 1. Add to LOCAL cache (instant!)
             add_payment_to_cache(
                 student_name=payment['student_name'],
                 subject=payment['subject'],
@@ -394,7 +393,6 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
                 amount=payment['amount']
             )
             
-            # 2. Add to Google Sheets (background, can be slow)
             add_payment(
                 student_name=payment['student_name'],
                 subject=payment['subject'],
@@ -404,7 +402,6 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
                 status="✅ Confirmed"
             )
             
-            # 3. Get updated summary from cache
             summary = get_student_payment_summary_cached(
                 payment['student_name'],
                 payment['subject'],
@@ -413,18 +410,17 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
             )
             
             if summary['completed']:
-                status_msg = "🎉 <b>Course fully paid!</b> Thank you!"
+                status_msg = get_text('congratulations_fully_paid', student_lang)
             else:
-                status_msg = f"📊 Remaining: ${summary['remaining']:.2f}"
+                status_msg = f"📊 {get_text('remaining', student_lang)}: ${summary['remaining']:.2f}"
             
             await context.bot.send_message(
                 chat_id=payment['student_chat_id'],
-                text=(
-                    f"✅ <b>Payment Confirmed!</b>\n\n"
-                    f"📚 Course: {payment['subject']}\n"
-                    f"💰 Amount: ${payment['amount']:.2f}\n"
-                    f"✅ Total Paid: ${summary['total_paid']:.2f}\n\n"
-                    f"{status_msg}"
+                text=get_text('payment_confirmed_notification', student_lang).format(
+                    subject=payment['subject'],
+                    amount=payment['amount'],
+                    total_paid=summary['total_paid'],
+                    status=status_msg
                 ),
                 parse_mode='HTML'
             )
@@ -444,10 +440,8 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
     else:
         await context.bot.send_message(
             chat_id=payment['student_chat_id'],
-            text=(
-                f"❌ <b>Payment Rejected</b>\n\n"
-                f"Your payment for <b>{payment['subject']}</b> was not approved.\n\n"
-                f"Please contact your teacher."
+            text=get_text('payment_rejected_notification', student_lang).format(
+                subject=payment['subject']
             ),
             parse_mode='HTML'
         )
@@ -463,5 +457,6 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
 
 async def cancel_payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel payment."""
-    await update.message.reply_text("❌ Payment cancelled.")
+    lang = get_user_language(str(update.effective_user.id))
+    await update.message.reply_text(get_text('cancelled', lang))
     return ConversationHandler.END

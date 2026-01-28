@@ -55,6 +55,10 @@ async def run_bot_and_scheduler():
     scheduler.start()
     print("📅 Scheduler started!")
     
+    # Check for postponed lessons scheduled for today
+    from app.scheduler import check_and_schedule_postponed_lessons
+    check_and_schedule_postponed_lessons()
+    
     # Start bot
     print("🤖 Starting Telegram bot...")
     app = create_bot_application()
@@ -97,6 +101,11 @@ def main():
         init_database()
         scheduler = setup_scheduler()
         scheduler.start()
+        
+        # Check for postponed lessons
+        from app.scheduler import check_and_schedule_postponed_lessons
+        check_and_schedule_postponed_lessons()
+        
         print("📅 Scheduler running! Press Ctrl+C to stop.")
         try:
             while True:
