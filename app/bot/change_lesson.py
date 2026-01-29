@@ -17,12 +17,11 @@ from app.bot.keyboards import (
     lessons_keyboard,
     confirm_keyboard,
     approval_keyboard,
-    reschedule_slots_keyboard,
 )
 from app.utils.localization import get_text, get_user_language
 
 # States
-SELECTING_LESSON, SELECTING_CHANGE_TYPE, SELECTING_SLOT, CONFIRMING = range(4)
+SELECTING_LESSON, SELECTING_CHANGE_TYPE, SELECTING_NEW_DATE, SELECTING_NEW_TIME, CONFIRMING = range(5)
 
 
 async def change_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,7 +136,7 @@ async def change_type_selected(update: Update, context: ContextTypes.DEFAULT_TYP
         return CONFIRMING
     
     else:
-        # Postpone - show teacher's available slots
+        # Postpone logic
         group_name = meeting.get('group_name')
         teacher_chat_id = None
         
@@ -150,6 +149,7 @@ async def change_type_selected(update: Update, context: ContextTypes.DEFAULT_TYP
             await query.edit_message_text(get_text('no_teacher_found', lang))
             return ConversationHandler.END
         
+        # Get all slots and CACHE them in user_data
         slots = get_available_slots_for_rescheduling(
             teacher_chat_id,
             exclude_date=selected_date,
@@ -157,18 +157,78 @@ async def change_type_selected(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         
         if not slots:
-            await query.edit_message_text(
-                get_text('no_available_slots', lang),
-                parse_mode='HTML'
-            )
+            await query.edit_message_text(get_text('no_available_slots', lang), parse_mode='HTML')
             return ConversationHandler.END
         
+        # Save slots to context so we don't query DB again in next step
+        context.user_data['available_slots'] = slots
+        
+        # Show Dates Keyboard
+        from app.bot.keyboards import reschedule_dates_keyboard
+        
         await query.edit_message_text(
-            get_text('select_new_time', lang),
-            reply_markup=reschedule_slots_keyboard(slots, lang),  # ← Pass lang
+            get_text('select_new_date', lang),
+            reply_markup=reschedule_dates_keyboard(slots, lang),
             parse_mode='HTML'
         )
-        return SELECTING_SLOT
+        return SELECTING_NEW_DATE
+    
+async def date_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle date selection, show times."""
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
+    
+    if query.data == "cancel_action":
+        await query.edit_message_text(get_text('cancelled', lang))
+        return ConversationHandler.END
+        
+    slots = context.user_data.get('available_slots', [])
+    
+    # Handle "resched_date_29-01-2026"
+    selected_date = query.data.replace("resched_date_", "")
+    
+    # Store selected date for "Back" functionality
+    context.user_data['temp_selected_date'] = selected_date
+    
+    # Find display date for title
+    display_date = selected_date
+    for s in slots:
+        if s['date'] == selected_date:
+            display_date = s['display'].split(' at ')[0]
+            break
+            
+    from app.bot.keyboards import reschedule_times_keyboard
+    
+    await query.edit_message_text(
+        get_text('select_new_time_for_date', lang).format(date=display_date),
+        reply_markup=reschedule_times_keyboard(slots, selected_date, lang),
+        parse_mode='HTML'
+    )
+    
+    return SELECTING_NEW_TIME
+
+async def back_to_dates(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Go back from times to dates."""
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = str(update.effective_user.id)
+    lang = get_user_language(chat_id)
+    
+    slots = context.user_data.get('available_slots', [])
+    
+    from app.bot.keyboards import reschedule_dates_keyboard
+    
+    await query.edit_message_text(
+        get_text('select_new_date', lang),
+        reply_markup=reschedule_dates_keyboard(slots, lang),
+        parse_mode='HTML'
+    )
+    
+    return SELECTING_NEW_DATE
 
 
 async def slot_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -182,6 +242,9 @@ async def slot_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "cancel_action":
         await query.edit_message_text(get_text('cancelled', lang))
         return ConversationHandler.END
+    
+    if query.data == "resched_back":
+        return await back_to_dates(update, context)
     
     if query.data == "no_slots":
         await query.edit_message_text(get_text('no_available_slots', lang))
@@ -548,7 +611,16 @@ async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cancel_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel change action."""
     lang = get_user_language(str(update.effective_user.id))
-    await update.message.reply_text(get_text('cancelled', lang))
+    
+    # Handle callback query (inline button)
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(get_text('cancelled', lang))
+    
+    # Handle command (/cancel)
+    elif update.message:
+        await update.message.reply_text(get_text('cancelled', lang))
+        
     return ConversationHandler.END
 
 

@@ -10,8 +10,9 @@ from app.bot.registration import (
 from app.bot.change_lesson import (
     change_command, lesson_selected, change_type_selected,
     confirm_action, handle_approval, cancel_change, slot_selected,
-    SELECTING_LESSON, SELECTING_CHANGE_TYPE, SELECTING_SLOT,
-    CONFIRMING
+    date_selected, back_to_dates,
+    SELECTING_LESSON, SELECTING_CHANGE_TYPE, 
+    CONFIRMING, SELECTING_NEW_DATE, SELECTING_NEW_TIME
 )
 from app.bot.schedule import (
     schedule_command, schedule_navigation, today_command
@@ -25,9 +26,17 @@ from app.bot.admin import (
     new_student_command, new_teacher_command, name_entered_admin,
     group_entered_admin, subject_entered_admin, admin_group_decision,
     list_users_command, cancel_admin,
+    delete_user_command, delete_user_chat_entered, delete_user_confirm,
+    edit_student_command, edit_user_chat_entered, edit_student_name, edit_student_group,
+    edit_teacher_command, edit_teacher_chat_entered, edit_teacher_name_step,
+    edit_teacher_group_step, edit_teacher_subject_step,
     ENTERING_NAME, ENTERING_GROUP as ADMIN_ENTERING_GROUP,
-    ADDING_MORE_GROUPS, ENTERING_SUBJECT as ADMIN_ENTERING_SUBJECT
+    ADDING_MORE_GROUPS, ENTERING_SUBJECT as ADMIN_ENTERING_SUBJECT,
+    EDIT_USER_CHAT, EDIT_STUDENT_NAME, EDIT_STUDENT_GROUP,
+    EDIT_TEACHER_NAME, EDIT_TEACHER_GROUP, EDIT_TEACHER_SUBJECT,
+    DELETE_USER_CHAT, DELETE_USER_CONFIRM
 )
+
 from app.bot.menu_handler import handle_menu_buttons, cancel_on_menu_button, is_button
 from app.bot.keyboards import main_menu_keyboard, MENU_BUTTONS
 from app.services.user_service import get_user, get_teacher_groups
@@ -81,6 +90,12 @@ availability_button = AvailabilityButtonFilter()
 
 # Filter for menu buttons
 menu_button_filter = filters.TEXT & filters.Regex(f'^({"|".join(MENU_BUTTONS)})$')
+
+admin_text_filter = (
+    filters.TEXT
+    & ~filters.Regex('^/cancel')
+    & ~menu_button_filter
+)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -208,8 +223,16 @@ def create_bot_application() -> Application:
         ],
         states={
             SELECTING_LESSON: [CallbackQueryHandler(lesson_selected)],
-            SELECTING_CHANGE_TYPE: [CallbackQueryHandler(change_type_selected)],
-            SELECTING_SLOT: [CallbackQueryHandler(slot_selected)],
+            SELECTING_CHANGE_TYPE: [CallbackQueryHandler(change_type_selected),
+                                    CallbackQueryHandler(cancel_change, pattern=r'^cancel_action$')
+                                    ],
+            
+            SELECTING_NEW_TIME: [CallbackQueryHandler(back_to_dates, pattern=r'^resched_back$'),
+                                 CallbackQueryHandler(slot_selected, pattern=r'^reschedule_'),
+                                 CallbackQueryHandler(cancel_change, pattern=r'^cancel_action$')],
+            
+            SELECTING_NEW_DATE: [CallbackQueryHandler(date_selected, pattern=r'^resched_date_'),
+                                 CallbackQueryHandler(cancel_change, pattern=r'^cancel_action$')],
             CONFIRMING: [CallbackQueryHandler(confirm_action)]
         },
         fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_change)],
@@ -232,6 +255,55 @@ def create_bot_application() -> Application:
         per_message=False
     )
     
+    edit_student_handler = ConversationHandler(
+        entry_points=[CommandHandler('edit_student', edit_student_command)],
+        states={
+            EDIT_USER_CHAT: [
+                MessageHandler(admin_text_filter, edit_user_chat_entered)
+            ],
+            EDIT_STUDENT_NAME: [
+                MessageHandler(admin_text_filter, edit_student_name)
+            ],
+            EDIT_STUDENT_GROUP: [
+                MessageHandler(admin_text_filter, edit_student_group)
+            ],
+        },
+        fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
+        per_message=False
+    )
+
+# Edit teacher conversation
+    edit_teacher_handler = ConversationHandler(
+        entry_points=[CommandHandler('edit_teacher', edit_teacher_command)],
+        states={
+            EDIT_USER_CHAT: [
+                MessageHandler(admin_text_filter, edit_teacher_chat_entered)
+            ],
+            EDIT_TEACHER_NAME: [
+                MessageHandler(admin_text_filter, edit_teacher_name_step)
+            ],
+            EDIT_TEACHER_GROUP: [
+                MessageHandler(admin_text_filter, edit_teacher_group_step)
+            ],
+            EDIT_TEACHER_SUBJECT: [
+                MessageHandler(admin_text_filter, edit_teacher_subject_step)
+            ],
+        },
+        fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
+        per_message=False
+    )
+
+# Delete user conversation
+    delete_user_handler = ConversationHandler(
+            entry_points=[CommandHandler('delete_user', delete_user_command)],
+            states={
+                DELETE_USER_CHAT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, delete_user_chat_entered)],
+                DELETE_USER_CONFIRM: [CallbackQueryHandler(delete_user_confirm, pattern=r'^deluser_')]
+            },
+            fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
+            per_message=False
+        )
+    
     # ═══════════════════════════════════════════════════════════
     # REGISTER HANDLERS (order matters!)
     # ═══════════════════════════════════════════════════════════
@@ -244,6 +316,9 @@ def create_bot_application() -> Application:
     app.add_handler(payment_handler)
     app.add_handler(get_availability_conversation_handler())
     app.add_handler(get_homework_conversation_handler())
+    app.add_handler(edit_student_handler)
+    app.add_handler(edit_teacher_handler)
+    app.add_handler(delete_user_handler)
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))

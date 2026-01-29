@@ -1,14 +1,35 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler
+from telegram.ext import ContextTypes, ConversationHandler, MessageHandler, CommandHandler, CallbackQueryHandler, filters
 from app.config import Config
 from app.services.user_service import (
-    create_pending_user, add_pending_teacher_group,
-    get_all_pending_users, get_all_active_users, delete_user
+    create_pending_user, 
+    add_pending_teacher_group,
+    get_all_pending_users, 
+    get_all_active_users, 
+    delete_user,
+    get_user,
+    delete_user_by_chat_id,
+    update_user_name,
+    update_student_group,
+    update_teacher_name,
+    update_teacher_groups,
 )
 from app.database.db import get_connection
+from app.utils.localization import get_user_language, get_text
 
 # States
 ENTERING_NAME, ENTERING_GROUP, ADDING_MORE_GROUPS, ENTERING_SUBJECT = range(4)
+
+(
+    EDIT_USER_CHAT,
+    EDIT_STUDENT_NAME,
+    EDIT_STUDENT_GROUP,
+    EDIT_TEACHER_NAME,
+    EDIT_TEACHER_GROUP,
+    EDIT_TEACHER_SUBJECT,
+    DELETE_USER_CHAT,
+    DELETE_USER_CONFIRM,
+) = range(4, 12)  # 8 new states starting from 4
 
 def is_admin(chat_id: str) -> bool:
     """Check if user is admin."""
@@ -219,4 +240,276 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Cancel admin action."""
     await update.message.reply_text("❌ Cancelled.")
+    return ConversationHandler.END
+
+async def delete_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start delete user flow (admin only)."""
+    chat_id = update.effective_user.id
+    if not is_admin(chat_id):
+        lang = get_user_language(str(chat_id))
+        await update.message.reply_text(get_text('admin_only', lang))
+        return ConversationHandler.END
+    
+    await update.message.reply_text(
+        "🗑 Send the <b>chat_id</b> of the user you want to delete.\n\n"
+        "You can copy it from /users output.",
+        parse_mode='HTML'
+    )
+    return DELETE_USER_CHAT
+
+
+async def delete_user_chat_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin sent chat_id of user to delete."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    if not text.isdigit():
+        await update.message.reply_text("❌ Please send a numeric chat_id.")
+        return DELETE_USER_CHAT
+    
+    target_chat_id = text
+    user = get_user(target_chat_id)
+    
+    if not user:
+        await update.message.reply_text("❌ No such user.")
+        return ConversationHandler.END
+    
+    context.user_data['delete_target'] = target_chat_id
+    
+    role_label = get_text('role_teacher', lang) if user['role'] == 'teacher' else get_text('role_student', lang)
+    
+    await update.message.reply_text(
+        f"⚠️ <b>Confirm delete</b>\n\n"
+        f"👤 {user['name']}\n"
+        f"🎭 {role_label}\n"
+        f"🆔 <code>{target_chat_id}</code>\n\n"
+        f"This will permanently remove them from the system.",
+        parse_mode='HTML',
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Delete", callback_data="deluser_yes"),
+                InlineKeyboardButton("❌ Cancel", callback_data="deluser_no"),
+            ]
+        ])
+    )
+    return DELETE_USER_CONFIRM
+
+
+async def delete_user_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Confirm or cancel actual deletion."""
+    query = update.callback_query
+    await query.answer()
+    
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    if query.data == "deluser_no":
+        await query.edit_message_text(get_text('cancelled', lang))
+        return ConversationHandler.END
+    
+    target_chat_id = context.user_data.get('delete_target')
+    if not target_chat_id:
+        await query.edit_message_text("❌ No target user stored.")
+        return ConversationHandler.END
+    
+    success = delete_user_by_chat_id(target_chat_id)
+    
+    if success:
+        await query.edit_message_text("✅ User deleted.")
+    else:
+        await query.edit_message_text("❌ Failed to delete user.")
+    
+    return ConversationHandler.END
+
+async def edit_student_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start edit student flow."""
+    chat_id = update.effective_user.id
+    if not is_admin(chat_id):
+        lang = get_user_language(str(chat_id))
+        await update.message.reply_text(get_text('admin_only', lang))
+        return ConversationHandler.END
+    
+    await update.message.reply_text(
+        "✏️ Send the <b>chat_id</b> of the STUDENT you want to edit.\n\nCopy it from /users.",
+        parse_mode='HTML'
+    )
+    return EDIT_USER_CHAT
+
+
+async def edit_user_chat_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin sent chat_id to edit (student or teacher)."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    if not text.isdigit():
+        await update.message.reply_text("❌ Please send a numeric chat_id.")
+        return EDIT_USER_CHAT
+    
+    target_chat_id = text
+    user = get_user(target_chat_id)
+    
+    if not user:
+        await update.message.reply_text("❌ No such user.")
+        return ConversationHandler.END
+    
+    if user['role'] != 'student':
+        await update.message.reply_text("❌ This is not a student. Use /edit_teacher for teachers.")
+        return ConversationHandler.END
+    
+    context.user_data['edit_target'] = target_chat_id
+    
+    await update.message.reply_text(
+        f"✏️ Editing student:\n\n"
+        f"👤 {user['name']}\n"
+        f"👥 Group: {user.get('group_name') or 'None'}\n\n"
+        f"Send a new <b>name</b> (or send /skip to leave unchanged).",
+        parse_mode='HTML'
+    )
+    return EDIT_STUDENT_NAME
+
+
+async def edit_student_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive new name for student (or /skip)."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    target_chat_id = context.user_data.get('edit_target')
+    
+    if text != "/skip":
+        ok = update_user_name(target_chat_id, text)
+        if not ok:
+            await update.message.reply_text("❌ Failed to update name.")
+            return ConversationHandler.END
+    
+    await update.message.reply_text(
+        "Now send new <b>group name</b> for the student (or send /skip):",
+        parse_mode='HTML'
+    )
+    return EDIT_STUDENT_GROUP
+
+
+async def edit_student_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive new group for student (or /skip)."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    target_chat_id = context.user_data.get('edit_target')
+    
+    if text != "/skip":
+        ok = update_student_group(target_chat_id, text)
+        if not ok:
+            await update.message.reply_text("❌ Failed to update group.")
+            return ConversationHandler.END
+    
+    await update.message.reply_text("✅ Student updated.")
+    return ConversationHandler.END
+
+async def edit_teacher_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Start edit teacher flow."""
+    chat_id = update.effective_user.id
+    if not is_admin(chat_id):
+        lang = get_user_language(str(chat_id))
+        await update.message.reply_text(get_text('admin_only', lang))
+        return ConversationHandler.END
+    
+    await update.message.reply_text(
+        "✏️ Send the <b>chat_id</b> of the TEACHER you want to edit.\n\nCopy it from /users.",
+        parse_mode='HTML'
+    )
+    return EDIT_USER_CHAT  # ← FIRST state: we want chat_id here
+
+
+async def edit_teacher_chat_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin sent teacher chat_id."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    if not text.isdigit():
+        await update.message.reply_text("❌ Please send a numeric chat_id.")
+        return EDIT_USER_CHAT  # ask again
+    
+    target_chat_id = text
+    user = get_user(target_chat_id)
+    
+    if not user or user['role'] != 'teacher':
+        await update.message.reply_text("❌ This is not a teacher.")
+        return ConversationHandler.END
+    
+    context.user_data['edit_target'] = target_chat_id
+    
+    await update.message.reply_text(
+        f"✏️ Editing teacher:\n\n"
+        f"👨‍🏫 {user['name']}\n\n"
+        f"Send new <b>name</b> (or /skip):",
+        parse_mode='HTML'
+    )
+    return EDIT_TEACHER_NAME  # ← Next state: waiting for new name
+
+
+async def edit_teacher_name_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive new teacher name."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    target_chat_id = context.user_data.get('edit_target')
+    
+    if text != "/skip":
+        ok = update_teacher_name(target_chat_id, text)
+        if not ok:
+            await update.message.reply_text("❌ Failed to update name.")
+            return ConversationHandler.END
+    
+    await update.message.reply_text(
+        "Send new <b>group name</b> for this teacher (applies to all their groups) or /skip:",
+        parse_mode='HTML'
+    )
+    return EDIT_TEACHER_GROUP
+
+
+async def edit_teacher_group_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive new teacher group name."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    target_chat_id = context.user_data.get('edit_target')
+    
+    new_group = None
+    if text != "/skip":
+        new_group = text
+    
+    context.user_data['edit_teacher_group'] = new_group
+    
+    await update.message.reply_text(
+        "Send new <b>subject</b> for this teacher (applies to all their groups) or /skip:",
+        parse_mode='HTML'
+    )
+    return EDIT_TEACHER_SUBJECT
+
+
+async def edit_teacher_subject_step(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Receive new teacher subject."""
+    admin_chat_id = str(update.effective_user.id)
+    lang = get_user_language(admin_chat_id)
+    
+    text = update.message.text.strip()
+    target_chat_id = context.user_data.get('edit_target')
+    
+    new_group = context.user_data.get('edit_teacher_group')
+    new_subject = None
+    if text != "/skip":
+        new_subject = text
+    
+    ok = update_teacher_groups(target_chat_id, new_group=new_group, new_subject=new_subject)
+    if not ok:
+        await update.message.reply_text("❌ Failed to update teacher groups/subjects.")
+        return ConversationHandler.END
+    
+    await update.message.reply_text("✅ Teacher updated.")
     return ConversationHandler.END

@@ -858,6 +858,24 @@ TRANSLATIONS = {
         'ru': '❌ Перенос отклонен участником группы.',
         'uz': '❌ Ko\'chirish guruh a\'zosi tomonidan rad etildi.'
     },
+    # ═══════════════════════════════════════════════════════════
+    # RESCHEDULE FLOW (New)
+    # ═══════════════════════════════════════════════════════════
+    'select_new_date': {
+        'en': '📅 Select a new date:',
+        'ru': '📅 Выберите новую дату:',
+        'uz': '📅 Yangi sanani tanlang:'
+    },
+    'select_new_time_for_date': {
+        'en': '⏰ Select time for <b>{date}</b>:',
+        'ru': '⏰ Выберите время для <b>{date}</b>:',
+        'uz': '⏰ <b>{date}</b> uchun vaqtni tanlang:'
+    },
+    'back_to_dates': {
+        'en': '🔙 Back to Dates',
+        'ru': '🔙 Назад к датам',
+        'uz': '🔙 Sanalarga qaytish'
+    },
 }
 
 def get_text(key: str, lang: str = 'en') -> str:

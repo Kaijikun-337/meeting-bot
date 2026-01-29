@@ -228,7 +228,7 @@ def can_change_lesson(meeting_config: dict, target_date: str) -> tuple:
 
 
 def get_upcoming_lessons(meeting_id: str, days_ahead: int = 14, lang: str = 'en') -> list:
-    """Get upcoming lesson dates for a meeting."""
+    """Get upcoming lesson dates for a meeting (EXCLUDING modified ones)."""
     from app.config import Config
     from app.utils.localization import get_text
     
@@ -241,13 +241,11 @@ def get_upcoming_lessons(meeting_id: str, days_ahead: int = 14, lang: str = 'en'
     tz = pytz.timezone(Config.TIMEZONE)
     now = datetime.now(tz)
     
-    # Day name to number mapping
     day_map = {
         'monday': 0, 'tuesday': 1, 'wednesday': 2,
         'thursday': 3, 'friday': 4, 'saturday': 5, 'sunday': 6
     }
     
-    # Reverse mapping for localization
     num_to_day_key = {
         0: 'monday', 1: 'tuesday', 2: 'wednesday',
         3: 'thursday', 4: 'friday', 5: 'saturday', 6: 'sunday'
@@ -258,35 +256,36 @@ def get_upcoming_lessons(meeting_id: str, days_ahead: int = 14, lang: str = 'en'
     upcoming = []
     for i in range(days_ahead):
         check_date = now + timedelta(days=i)
+        
+        # Check if 2+ hours before (strict check to hide started/passed lessons)
+        lesson_time = check_date.replace(
+            hour=meeting['schedule']['hour'], 
+            minute=meeting['schedule']['minute']
+        )
+        if lesson_time < now + timedelta(hours=2):
+            continue
+            
         if check_date.weekday() in schedule_days:
             date_str = check_date.strftime("%d-%m-%Y")
+            
+            # Check for overrides
             override = get_override(meeting_id, date_str)
+            
+            # ⛔ SKIP IF ALREADY MODIFIED
+            if override:
+                continue
             
             # Get localized day name
             day_key = num_to_day_key[check_date.weekday()]
             day_name = get_text(day_key, lang)
             
-            if override:
-                if override['override_type'] in ['cancel', 'cancelled']:
-                    continue
-                elif override['override_type'] in ['postpone', 'postponed']:
-                    upcoming.append({
-                        "date": date_str,
-                        "day_name": day_name,
-                        "hour": override['new_hour'],
-                        "minute": override['new_minute'],
-                        "status": "postponed",
-                        "new_date": override['new_date'],
-                        "original_hour": meeting['schedule']['hour'],
-                        "original_minute": meeting['schedule']['minute']
-                    })
-            else:
-                upcoming.append({
-                    "date": date_str,
-                    "day_name": day_name,
-                    "hour": meeting['schedule']['hour'],
-                    "minute": meeting['schedule']['minute'],
-                    "status": "normal"
-                })
+            # Add normal lesson
+            upcoming.append({
+                "date": date_str,
+                "day_name": day_name,
+                "hour": meeting['schedule']['hour'],
+                "minute": meeting['schedule']['minute'],
+                "status": "normal"
+            })
     
     return upcoming

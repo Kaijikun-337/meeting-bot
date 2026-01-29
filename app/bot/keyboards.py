@@ -321,21 +321,69 @@ def availability_view_keyboard(availability_list: list, lang: str = 'en'):
 # RESCHEDULE SLOTS KEYBOARD
 # ═══════════════════════════════════════════════════════════
 
-def reschedule_slots_keyboard(slots: list, lang: str = 'en'):
-    """Show available slots for student rescheduling."""
+def reschedule_dates_keyboard(slots: list, lang: str = 'en'):
+    """Step 1: Show unique dates available for rescheduling."""
     buttons = []
     
+    # Extract unique dates while preserving order
+    seen_dates = set()
+    unique_entries = []
+    
     for slot in slots:
+        if slot['date'] not in seen_dates:
+            seen_dates.add(slot['date'])
+            unique_entries.append(slot)
+    
+    # Create buttons for dates (displaying "Mon 29 Jan")
+    for entry in unique_entries:
+        # Extract just the date part from the display string (hacky but works if format is consistent)
+        # Or better: use the 'date' value and formatting
+        # entry['display'] looks like "Thu 29 Jan at 10:00"
+        # We want just "Thu 29 Jan"
+        display_date = entry['display'].split(' at ')[0]
+        
         buttons.append([
             InlineKeyboardButton(
-                f"📅 {slot['display']}",
-                callback_data=f"reschedule_{slot['date']}_{slot['hour']}_{slot['minute']}"
+                f"📅 {display_date}",
+                callback_data=f"resched_date_{entry['date']}"
             )
         ])
     
     if not buttons:
         buttons.append([InlineKeyboardButton(get_text('no_available_slots', lang), callback_data="no_slots")])
     
+    buttons.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
+    
+    return InlineKeyboardMarkup(buttons)
+
+
+def reschedule_times_keyboard(slots: list, selected_date: str, lang: str = 'en'):
+    """Step 2: Show times for the selected date."""
+    buttons = []
+    
+    # Filter slots for this date
+    day_slots = [s for s in slots if s['date'] == selected_date]
+    
+    # Create grid of time buttons (3 per row)
+    row = []
+    for slot in day_slots:
+        # slot['hour'] = 14, slot['minute'] = 30
+        time_str = f"{slot['hour']:02d}:{slot['minute']:02d}"
+        
+        row.append(InlineKeyboardButton(
+            time_str,
+            callback_data=f"reschedule_{slot['date']}_{slot['hour']}_{slot['minute']}"
+        ))
+        
+        if len(row) == 3:
+            buttons.append(row)
+            row = []
+            
+    if row:
+        buttons.append(row)
+    
+    # Navigation buttons
+    buttons.append([InlineKeyboardButton(get_text('back_to_dates', lang), callback_data="resched_back")])
     buttons.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
     
     return InlineKeyboardMarkup(buttons)

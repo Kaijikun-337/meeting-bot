@@ -1,5 +1,6 @@
 import random
 import string
+from typing import Optional
 from datetime import datetime
 from app.database.db import get_connection
 
@@ -298,6 +299,121 @@ def delete_user(registration_key: str) -> bool:
         return cursor.rowcount > 0
     except Exception as e:
         print(f"❌ Error deleting user: {e}")
+        return False
+    finally:
+        conn.close()
+
+def delete_user_by_chat_id(chat_id: str) -> bool:
+    """Delete a user and related teacher groups by chat_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Get registration key first (for cleanup of pending_teacher_groups if needed)
+        cursor.execute("SELECT registration_key, role FROM users WHERE chat_id = ?", (str(chat_id),))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        
+        reg_key = row['registration_key']
+        role = row['role']
+        
+        # Delete from users
+        cursor.execute("DELETE FROM users WHERE chat_id = ?", (str(chat_id),))
+        
+        # If teacher, delete teacher_groups mapping
+        if role == 'teacher':
+            cursor.execute("DELETE FROM teacher_groups WHERE teacher_chat_id = ?", (str(chat_id),))
+        
+        # Also cleanup pending_teacher_groups if any
+        cursor.execute("DELETE FROM pending_teacher_groups WHERE registration_key = ?", (reg_key,))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Error deleting user by chat_id: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def update_user_name(chat_id: str, new_name: str) -> bool:
+    """Update user's name by chat_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("UPDATE users SET name = ? WHERE chat_id = ?", (new_name, str(chat_id)))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"❌ Error updating user name: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def update_student_group(chat_id: str, new_group: str) -> bool:
+    """Update student's group_name by chat_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            UPDATE users 
+            SET group_name = ?
+            WHERE chat_id = ? AND role = 'student'
+        """, (new_group, str(chat_id)))
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"❌ Error updating student group: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def update_teacher_name(chat_id: str, new_name: str) -> bool:
+    """Update teacher's name by chat_id."""
+    return update_user_name(chat_id, new_name)
+
+
+def update_teacher_groups(chat_id: str, new_group: Optional[str] = None, new_subject: Optional[str] = None) -> bool:
+    """
+    Update all teacher_groups rows for a teacher.
+    If new_group is provided, sets group_name = new_group for all mappings.
+    If new_subject is provided, sets subject = new_subject for all mappings.
+    """
+    if not new_group and not new_subject:
+        return True  # Nothing to do
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        if new_group and new_subject:
+            cursor.execute("""
+                UPDATE teacher_groups
+                SET group_name = ?, subject = ?
+                WHERE teacher_chat_id = ?
+            """, (new_group, new_subject, str(chat_id)))
+        elif new_group:
+            cursor.execute("""
+                UPDATE teacher_groups
+                SET group_name = ?
+                WHERE teacher_chat_id = ?
+            """, (new_group, str(chat_id)))
+        elif new_subject:
+            cursor.execute("""
+                UPDATE teacher_groups
+                SET subject = ?
+                WHERE teacher_chat_id = ?
+            """, (new_subject, str(chat_id)))
+        
+        conn.commit()
+        return cursor.rowcount > 0
+    except Exception as e:
+        print(f"❌ Error updating teacher groups: {e}")
         return False
     finally:
         conn.close()
