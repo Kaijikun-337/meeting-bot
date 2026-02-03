@@ -24,14 +24,12 @@ from app.bot.payment import (
 )
 from app.bot.admin import (
     new_student_command, new_teacher_command, name_entered_admin,
-    group_entered_admin, subject_entered_admin, admin_group_decision,
-    list_users_command, cancel_admin,
+    group_entered_admin, list_users_command, cancel_admin,
     delete_user_command, delete_user_chat_entered, delete_user_confirm,
     edit_student_command, edit_user_chat_entered, edit_student_name, edit_student_group,
     edit_teacher_command, edit_teacher_chat_entered, edit_teacher_name_step,
     edit_teacher_group_step, edit_teacher_subject_step,
     ENTERING_NAME, ENTERING_GROUP as ADMIN_ENTERING_GROUP,
-    ADDING_MORE_GROUPS, ENTERING_SUBJECT as ADMIN_ENTERING_SUBJECT,
     EDIT_USER_CHAT, EDIT_STUDENT_NAME, EDIT_STUDENT_GROUP,
     EDIT_TEACHER_NAME, EDIT_TEACHER_GROUP, EDIT_TEACHER_SUBJECT,
     DELETE_USER_CHAT, DELETE_USER_CONFIRM
@@ -122,7 +120,25 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🎭 {get_text('status_role', lang)}: {get_text(role_key, lang)}",
     ]
     
-    if user.get('group_name'):
+    # NEW: If teacher, show list of groups from the separate table
+    if user['role'] == 'teacher':
+        groups = get_teacher_groups(chat_id)
+        if groups:
+            # Format: "Group A (Math), Group B (Physics)"
+            group_list = []
+            for g in groups:
+                g_name = g['group_name']
+                subj = g.get('subject')
+                if subj:
+                    group_list.append(f"{g_name} ({subj})")
+                else:
+                    group_list.append(g_name)
+            
+            groups_str = ", ".join(group_list)
+            lines.append(f"📚 {get_text('status_teaching_groups', lang)}: {groups_str}")
+            
+    # If student, show their single group
+    elif user.get('group_name'):
         lines.append(f"👥 {get_text('status_group', lang)}: {user['group_name']}")
     
     if user.get('activated_at'):
@@ -208,8 +224,6 @@ def create_bot_application() -> Application:
         states={
             ENTERING_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, name_entered_admin)],
             ADMIN_ENTERING_GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, group_entered_admin)],
-            ADMIN_ENTERING_SUBJECT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, subject_entered_admin)],
-            ADDING_MORE_GROUPS: [CallbackQueryHandler(admin_group_decision, pattern=r'^admin_')]
         },
         fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
         per_message=False

@@ -1,5 +1,7 @@
 import random
 import string
+import json
+import os
 from typing import Optional
 from datetime import datetime
 from app.database.db import get_connection
@@ -61,6 +63,77 @@ def add_pending_teacher_group(registration_key: str, group_name: str, subject: s
         conn.close()
 
 
+def sync_teacher_groups_from_json(teacher_chat_id, teacher_name):
+    """
+    Reads meetings.json, finds groups for this teacher, and inserts them into teacher_groups.
+    """
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        file_path = os.path.join(base_dir, 'meetings.json')
+        
+        if not os.path.exists(file_path):
+            print(f"⚠️ meetings.json not found at {file_path}")
+            return
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        # === FIX IS HERE ===
+        meetings = []
+        if isinstance(data, list):
+            meetings = data
+        elif isinstance(data, dict):
+            # Check for "meetings" key (your format)
+            if "meetings" in data and isinstance(data["meetings"], list):
+                meetings = data["meetings"]
+            # Check for "lessons" key (legacy format)
+            elif "lessons" in data and isinstance(data["lessons"], list):
+                meetings = data["lessons"]
+            else:
+                # Fallback
+                meetings = [data]
+        
+        found_entries = set()
+        available_teachers = set()
+        
+        target_name = teacher_name.strip().lower()
+
+        for m in meetings:
+            if not isinstance(m, dict): 
+                continue 
+            
+            t_name = m.get('teacher_name', '')
+            if t_name:
+                available_teachers.add(t_name)
+                
+                # Case-insensitive comparison
+                if t_name.strip().lower() == target_name:
+                    g_name = m.get('group_name')
+                    subj = m.get('subject', 'General')
+                    if g_name:
+                        found_entries.add((g_name, subj))
+
+        if not found_entries:
+            print(f"⚠️ No groups found in JSON for teacher: '{teacher_name}'")
+            print(f"🔎 Available teachers in JSON: {', '.join(sorted(available_teachers))}")
+            return
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        for group, subject in found_entries:
+            cursor.execute("""
+                INSERT OR REPLACE INTO teacher_groups (teacher_chat_id, group_name, subject)
+                VALUES (?, ?, ?)
+            """, (str(teacher_chat_id), group, subject))
+            print(f"✅ Auto-linked group '{group}' ({subject}) to {teacher_name}")
+
+        conn.commit()
+        conn.close()
+
+    except Exception as e:
+        print(f"❌ Error syncing teacher groups: {e}")
+
 def activate_user(chat_id: str, registration_key: str) -> dict:
     """
     Activate a user with their registration key.
@@ -102,8 +175,12 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
             WHERE registration_key = ?
         ''', (str(chat_id), datetime.now().isoformat(), registration_key))
         
-        # If teacher, move pending groups to active
-        if user['role'] == 'teacher':
+        user_role = user['role']
+        user_name = user['name']
+
+        # If teacher...
+        if user_role == 'teacher':
+            # 1. Move pending groups (Manual Admin Input) to active
             cursor.execute('''
                 SELECT group_name, subject FROM pending_teacher_groups
                 WHERE registration_key = ?
@@ -118,13 +195,20 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
             
             # Clean up pending groups
             cursor.execute('DELETE FROM pending_teacher_groups WHERE registration_key = ?', (registration_key,))
-        
+
         conn.commit()
+        conn.close()
+
+        # 2. NEW: Sync groups from JSON (Automatic Input)
+        # We do this OUTSIDE the transaction above just to keep logic separate, 
+        # or inside - here it is fine because it opens its own connection.
+        if user_role == 'teacher':
+            sync_teacher_groups_from_json(str(chat_id), user_name)
         
         return {
             "success": True,
-            "name": user['name'],
-            "role": user['role'],
+            "name": user_name,
+            "role": user_role,
             "group_name": user['group_name']
         }
         
@@ -132,7 +216,8 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
         print(f"❌ Activation error: {e}")
         return {"error": str(e)}
     finally:
-        conn.close()
+        # Connection closed inside try block for commit, or here if error
+        pass
 
 
 def get_user(chat_id: str) -> dict:

@@ -416,3 +416,14 @@ def language_keyboard():
     for code, name in LANGUAGES.items():
         buttons.append([InlineKeyboardButton(name, callback_data=f"setlang_{code}")])
     return InlineKeyboardMarkup(buttons)
+
+def unregistered_menu_keyboard(lang: str = 'en'):
+    """Menu for users who are not registered yet: only Language button."""
+    keyboard = [
+        [KeyboardButton(get_text('btn_language', lang))]
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,
+        is_persistent=True
+    )

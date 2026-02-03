@@ -876,6 +876,42 @@ TRANSLATIONS = {
         'ru': '🔙 Назад к датам',
         'uz': '🔙 Sanalarga qaytish'
     },
+    
+    'welcome_message':{
+        'en': "👋 Welcome to Demy Academy bot!\n\n"
+              "Who are you?\n"
+              "• 👨‍🎓 Student\n"
+              "• 👨‍🏫 Teacher\n\n"
+              "To start using the bot, please enter your registration key.\n"
+              "Format: STU-XXXXXX or TCH-XXXXXX\n\n"
+              "If you don't have a key yet, ask your teacher or administrator.",
+        'ru': "👋 Добро пожаловать в бот Demy Academy!\n\n"
+              "Кто вы?\n"
+              "• 👨‍🎓 Студент\n"
+              "• 👨‍🏫 Учитель\n\n"
+              "Чтобы начать, введите ваш ключ регистрации.\n"
+              "Формат: STU-XXXXXX или TCH-XXXXXX\n\n"
+              "Если у вас нет ключа, обратитесь к администратору.",
+        'uz': "👋 Demy Academy botiga xush kelibsiz!\n\n"
+              "Siz kimsiz?\n"
+              "• 👨‍🎓 Talaba\n"
+              "• 👨‍🏫 O'qituvchi\n\n"
+              "Boshlash uchun ro'yxatdan o'tish kalitini kiriting.\n"
+              "Format: STU-XXXXXX yoki TCH-XXXXXX\n\n"
+              "Agar kalitingiz bo'lmasa, administratorga murojaat qiling."
+    },
+    
+    'menu_open': {
+        'en': "⬇️ Menu",
+        'ru': "⬇️ Меню",
+        'uz': "⬇️ Menyu"
+    },
+    
+    'status_teaching_groups':{
+        'en': "Teaching Groups",
+        'ru': "Преподаваемые группы",
+        'uz': "O'qitiladigan guruhlar"
+    }
 }
 
 def get_text(key: str, lang: str = 'en') -> str:

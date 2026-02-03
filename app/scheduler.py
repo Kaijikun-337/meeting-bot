@@ -8,6 +8,7 @@ from app.telegram_bot import meeting_bot
 from app.services.lesson_service import check_lesson_status
 from app.services.request_service import cleanup_expired_requests
 from app.services.lesson_service import get_all_postponed_to_date, check_lesson_status
+from app.services.user_service import get_teacher_for_group, get_students_in_group
 
 
 DAY_MAP = {
@@ -17,41 +18,61 @@ DAY_MAP = {
 
 
 def create_meeting_job(meeting_config: dict):
-    """Job function that checks overrides before creating meeting."""
+    """Job function that checks overrides and sends meeting link to teacher + students."""
     tz = pytz.timezone(Config.TIMEZONE)
-    today = datetime.now(tz).strftime("%Y-%m-%d")
-    
+    today = datetime.now(tz).strftime("%d-%m-%Y")
+
     meeting_id = meeting_config['id']
-    
-    # Check for overrides
+    group_name = meeting_config.get('group_name')
+
+    # Check overrides
     status = check_lesson_status(meeting_id, today)
-    
+
     if status['status'] == 'cancelled':
         print(f"⏭️ Skipping {meeting_config['title']} - CANCELLED")
         return
-    
+
     if status['status'] == 'postponed':
         print(f"⏭️ Skipping {meeting_config['title']} - POSTPONED to {status.get('new_date', 'unknown')}")
         return
-    
-    # Create meeting
-    print(f"⏰ Creating meeting: {meeting_config['title']}")
-    
+
+    print(f"⏰ Creating meeting: {meeting_config['title']} for group {group_name}")
+
     meeting = create_jitsi_meeting(title=meeting_config['title'])
-    
+
     print(f"✅ Meeting created: {meeting['meet_link']}")
-    
-    chat_id = meeting_config.get('chat_id')
-    meeting_bot.send_meeting_link_sync(meeting, chat_id)
-    
-    print(f"✅ Sent to chat: {chat_id}")
+
+    # Collect recipients: teacher + all students in the group
+    recipients = set()
+
+    if group_name:
+        teacher = get_teacher_for_group(group_name)
+        if teacher and teacher.get('chat_id'):
+            recipients.add(str(teacher['chat_id']))
+
+        students = get_students_in_group(group_name)
+        for student in students:
+            if student.get('chat_id'):
+                recipients.add(str(student['chat_id']))
+
+    if not recipients:
+        print(f"⚠️ No recipients found for group {group_name}.")
+        return
+
+    # Send to each unique recipient
+    for chat_id in recipients:
+        try:
+            meeting_bot.send_meeting_link_sync(meeting, chat_id)
+            print(f"✅ Sent to chat: {chat_id}")
+        except Exception as e:
+            print(f"❌ Failed to send to {chat_id}: {e}")
     
 def check_and_schedule_postponed_lessons():
     """Check for lessons postponed to today and schedule them."""
     from app.services.lesson_service import get_all_postponed_to_date
     
     tz = pytz.timezone(Config.TIMEZONE)
-    today = datetime.now(tz).strftime("%Y-%m-%d")
+    today = datetime.now(tz).strftime("%d-%m-%Y")
     
     postponed_today = get_all_postponed_to_date(today)
     
@@ -116,7 +137,7 @@ def check_and_schedule_postponed_lessons():
     """Check for lessons postponed to today and schedule them."""
     tz = pytz.timezone(Config.TIMEZONE)
     now = datetime.now(tz)
-    today = now.strftime("%Y-%m-%d")
+    today = now.strftime("%d-%m-%Y")
     
     postponed_today = get_all_postponed_to_date(today)
     

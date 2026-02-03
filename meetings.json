@@ -6,8 +6,6 @@
       "description": "Групповые занятия по математике. Ученики: Нормина, Мубина",
       "duration_minutes": 60,
       "teacher_name": "Amir",
-      "chat_id": "1915241420",
-      "teacher_chat_id": "-",
       "subject": "math",
       "group_name": "Group M/N",
       "schedule": {
@@ -22,8 +20,6 @@
       "description": "Индивидуальное занятие по математике. Ученики: Алексей",
       "duration_minutes": 60,
       "teacher_name": "Amir",
-      "chat_id": "-100111111111",
-      "teacher_chat_id": "123456789",
       "subject": "math",
       "group_name": "Group Alex",
       "schedule": {
@@ -38,8 +34,6 @@
       "description": "Индивидуальное занятие по математике. Ученики: Азиза",
       "duration_minutes": 60,
       "teacher_name": "Amir",
-      "chat_id": "-100222222222",
-      "teacher_chat_id": "123456789",
       "subject": "math",
       "group_name": "Group Aziza",
       "schedule": {
@@ -54,8 +48,6 @@
       "description": "Индивидуальное занятие по математике. Ученики: Никита",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Математика",
       "group_name": "Group Ni",
       "schedule": {
@@ -70,8 +62,6 @@
       "description": "Индивидуальное занятие по Английскому. Ученики: Мухаммад",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group Mu",
       "schedule": {
@@ -86,8 +76,6 @@
       "description": "Индивидуальное занятие по Английскому. Ученики: Ирина",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group Ir",
       "schedule": {
@@ -102,8 +90,6 @@
       "description": "Групповые занятия по Английскому. Ученики: Ахрор, Фируз",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group A/F",
       "schedule": {
@@ -118,8 +104,6 @@
       "description": "Групповые занятия по Английскому. Ученики: Самир, Руслан, Амир",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group S/R/A",
       "schedule": {
@@ -134,8 +118,6 @@
       "description": "Групповые занятия по математике. Ученики: Камрон, Даврон",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Математика",
       "group_name": "Group K/D",
       "schedule": {
@@ -150,8 +132,6 @@
       "description": "Групповые занятия по Английскому. Ученики: Камрон, Даврон",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group K/D",
       "schedule": {
@@ -166,8 +146,6 @@
       "description": "Индивидуальное занятие по Английскому. Ученики: Феруза",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group Fe",
       "schedule": {
@@ -182,8 +160,6 @@
       "description": "Индивидуальное занятие по Английскому. Ученики: Милена",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group Mi",
       "schedule": {
@@ -198,8 +174,6 @@
       "description": "Индивидуальное занятие по Английскому. Ученики: Бехруз",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group Be",
       "schedule": {
@@ -214,8 +188,6 @@
       "description": "Групповые занятия по Английскому. Ученики: Ахрор, Фируз",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group A/F",
       "schedule": {
@@ -230,8 +202,6 @@
       "description": "Групповые занятия по Английскому. Ученики: Макар, Рада",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group M/R",
       "schedule": {
@@ -246,8 +216,6 @@
       "description": "Групповые занятия по Английскому. Ученики: Самир, Руслан, Амир",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group S/R/A",
       "schedule": {
@@ -262,8 +230,6 @@
       "description": "Индивидуальное занятие по Английскому. Ученики: Наргиза",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Английский",
       "group_name": "Group Na",
       "schedule": {
@@ -278,8 +244,6 @@
       "description": "Индивидуальное занятие по математике. Ученики: Макар",
       "duration_minutes": 60,
       "teacher_name": "Sardor",
-      "chat_id": "-",
-      "teacher_chat_id": "6833180182",
       "subject": "Математика",
       "group_name": "Group Ma",
       "schedule": {

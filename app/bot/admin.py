@@ -18,7 +18,8 @@ from app.database.db import get_connection
 from app.utils.localization import get_user_language, get_text
 
 # States
-ENTERING_NAME, ENTERING_GROUP, ADDING_MORE_GROUPS, ENTERING_SUBJECT = range(4)
+ENTERING_NAME, ENTERING_GROUP = range(2)
+# Note: We removed ENTERING_SUBJECT and ADDING_MORE_GROUPS as they are no longer used
 
 (
     EDIT_USER_CHAT,
@@ -29,7 +30,7 @@ ENTERING_NAME, ENTERING_GROUP, ADDING_MORE_GROUPS, ENTERING_SUBJECT = range(4)
     EDIT_TEACHER_SUBJECT,
     DELETE_USER_CHAT,
     DELETE_USER_CONFIRM,
-) = range(4, 12)  # 8 new states starting from 4
+) = range(4, 12) 
 
 def is_admin(chat_id: str) -> bool:
     """Check if user is admin."""
@@ -63,11 +64,12 @@ async def new_teacher_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Admin only command.")
         return ConversationHandler.END
     
-    context.user_data['new_user'] = {'role': 'teacher', 'groups': []}
+    context.user_data['new_user'] = {'role': 'teacher'}
     
     await update.message.reply_text(
         "👨‍🏫 <b>New Teacher Registration</b>\n\n"
-        "Enter the teacher's <b>full name</b>:",
+        "Enter the teacher's <b>full name</b>:\n"
+        "<i>(Must match the name in the schedule file exactly)</i>",
         parse_mode='HTML'
     )
     
@@ -78,9 +80,9 @@ async def name_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Handle name input for new user."""
     name = update.message.text.strip()
     context.user_data['new_user']['name'] = name
-    
     role = context.user_data['new_user']['role']
     
+    # === STUDENT FLOW ===
     if role == 'student':
         await update.message.reply_text(
             f"👤 Name: <b>{name}</b>\n\n"
@@ -88,21 +90,36 @@ async def name_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE)
             parse_mode='HTML'
         )
         return ENTERING_GROUP
+
+    # === TEACHER FLOW (New Automatic Logic) ===
     else:
-        await update.message.reply_text(
-            f"👤 Name: <b>{name}</b>\n\n"
-            "Enter a <b>group name</b> this teacher will teach:",
-            parse_mode='HTML'
-        )
-        return ENTERING_GROUP
+        # Create pending teacher immediately
+        key = create_pending_user(name, 'teacher')
+        
+        if key:
+            await update.message.reply_text(
+                f"✅ <b>Teacher Created!</b>\n\n"
+                f"👤 Name: {name}\n"
+                f"🔑 <b>Registration Key:</b>\n"
+                f"<code>{key}</code>\n\n"
+                f"ℹ️ <b>Note:</b> Groups will be automatically assigned from the schedule when they register.\n\n"
+                f"Share this key with the teacher.\n"
+                f"They use /start and enter this key to activate.",
+                parse_mode='HTML'
+            )
+        else:
+            await update.message.reply_text("❌ Error creating teacher.")
+        
+        # End conversation immediately for teachers
+        return ConversationHandler.END
 
 
 async def group_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle group input."""
+    """Handle group input (Students Only)."""
     group = update.message.text.strip()
-    role = context.user_data['new_user']['role']
     
-    if role == 'student':
+    # Double check this is a student (should be, based on logic above)
+    if context.user_data['new_user']['role'] == 'student':
         context.user_data['new_user']['group'] = group
         
         # Create student
@@ -125,90 +142,7 @@ async def group_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         return ConversationHandler.END
     
-    else:
-        # Teacher - ask for subject for this group
-        context.user_data['new_user']['current_group'] = group
-        
-        await update.message.reply_text(
-            f"📚 Group: <b>{group}</b>\n\n"
-            "Enter the <b>subject</b> for this group:\n\n"
-            "<i>Example: Math, English, Physics</i>",
-            parse_mode='HTML'
-        )
-        return ENTERING_SUBJECT
-
-
-async def subject_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle subject input for teacher."""
-    subject = update.message.text.strip()
-    group = context.user_data['new_user']['current_group']
-    
-    context.user_data['new_user']['groups'].append({
-        'group': group,
-        'subject': subject
-    })
-    
-    groups_list = context.user_data['new_user']['groups']
-    groups_text = "\n".join([f"  • {g['group']} ({g['subject']})" for g in groups_list])
-    
-    await update.message.reply_text(
-        f"✅ Added: <b>{group}</b> - {subject}\n\n"
-        f"<b>Groups so far:</b>\n{groups_text}\n\n"
-        "Add another group or finish?",
-        parse_mode='HTML',
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("➕ Add Another Group", callback_data="admin_add_group"),
-                InlineKeyboardButton("✅ Finish", callback_data="admin_finish_teacher")
-            ]
-        ])
-    )
-    
-    return ADDING_MORE_GROUPS
-
-
-async def admin_group_decision(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle add more groups or finish."""
-    query = update.callback_query
-    await query.answer()
-    
-    if query.data == "admin_add_group":
-        await query.edit_message_text(
-            "Enter another <b>group name</b>:",
-            parse_mode='HTML'
-        )
-        return ENTERING_GROUP
-    
-    elif query.data == "admin_finish_teacher":
-        # Create teacher
-        user_data = context.user_data['new_user']
-        name = user_data['name']
-        groups = user_data['groups']
-        
-        # Create pending user
-        key = create_pending_user(name, 'teacher')
-        
-        if key:
-            # Add pending groups
-            for g in groups:
-                add_pending_teacher_group(key, g['group'], g['subject'])
-            
-            groups_text = "\n".join([f"  • {g['group']} ({g['subject']})" for g in groups])
-            
-            await query.edit_message_text(
-                f"✅ <b>Teacher Created!</b>\n\n"
-                f"👤 Name: {name}\n"
-                f"📚 Groups:\n{groups_text}\n\n"
-                f"🔑 <b>Registration Key:</b>\n"
-                f"<code>{key}</code>\n\n"
-                f"Share this key with the teacher.\n"
-                f"They use /start and enter this key to activate.",
-                parse_mode='HTML'
-            )
-        else:
-            await query.edit_message_text("❌ Error creating teacher.")
-        
-        return ConversationHandler.END
+    return ConversationHandler.END
 
 
 async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
