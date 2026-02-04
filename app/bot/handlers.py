@@ -174,12 +174,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ═══════════════════════════════════════════════════════════
-# CREATE BOT APPLICATION
+# REGISTER HANDLERS FUNCTION
 # ═══════════════════════════════════════════════════════════
 
-def create_bot_application() -> Application:
-    """Create and configure the bot application."""
-    app = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
+def register_handlers(app: Application):
+    """Register all handlers to the bot application."""
     
     # Common fallbacks for all conversations
     common_fallbacks = [
@@ -286,7 +285,7 @@ def create_bot_application() -> Application:
         per_message=False
     )
 
-# Edit teacher conversation
+    # Edit teacher conversation
     edit_teacher_handler = ConversationHandler(
         entry_points=[CommandHandler('edit_teacher', edit_teacher_command)],
         states={
@@ -307,7 +306,7 @@ def create_bot_application() -> Application:
         per_message=False
     )
 
-# Delete user conversation
+    # Delete user conversation
     delete_user_handler = ConversationHandler(
             entry_points=[CommandHandler('delete_user', delete_user_command)],
             states={
@@ -354,5 +353,10 @@ def create_bot_application() -> Application:
     
     # Error handler (always last)
     app.add_error_handler(error_handler)
-    
+
+
+# Legacy support if main.py wasn't updated to use register_handlers directly
+def create_bot_application() -> Application:
+    app = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
+    register_handlers(app)
     return app

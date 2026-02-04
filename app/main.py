@@ -1,146 +1,50 @@
-import sys
-import asyncio
+import logging
+import os
+from telegram.ext import Application
 from app.config import Config
+from app.bot.handlers import register_handlers
 from app.database.db import init_database
-from app.scheduler import setup_scheduler, run_meeting_now, list_meetings
-from app.jitsi_meet import create_jitsi_meeting
-from app.telegram_bot import meeting_bot
-from app.bot.handlers import create_bot_application
+from app.scheduler import start_scheduler
 
-
-def print_help():
-    print("""
-🤖 Meeting Bot - Commands
-===========================
-
-python -m app.main              Start bot + scheduler
-python -m app.main bot          Start bot only
-python -m app.main scheduler    Start scheduler only
-python -m app.main list         List all meetings
-python -m app.main run <id>     Run specific meeting now
-python -m app.main test         Quick test
-python -m app.main help         Show this help
-""")
-
-
-async def run_bot_only():
-    """Run only the Telegram bot."""
-    print("🤖 Starting Telegram bot...")
-    app = create_bot_application()
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    print("✅ Bot running! Press Ctrl+C to stop.")
-    
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await app.updater.stop()
-        await app.stop()
-        await app.shutdown()
-
-
-async def run_bot_and_scheduler():
-    """Run both bot and scheduler."""
-    print("🤖 Starting Meeting Bot...")
-    
-    # Initialize database
-    init_database()
-    
-    # Start scheduler
-    scheduler = setup_scheduler()
-    scheduler.start()
-    print("📅 Scheduler started!")
-    
-    # Check for postponed lessons scheduled for today
-    from app.scheduler import check_and_schedule_postponed_lessons
-    check_and_schedule_postponed_lessons()
-    
-    # Start bot
-    print("🤖 Starting Telegram bot...")
-    app = create_bot_application()
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    print("✅ Bot + Scheduler running! Press Ctrl+C to stop.")
-    
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        print("\n🛑 Shutting down...")
-        scheduler.shutdown()
-        await app.updater.stop()
-        await app.stop()
-        await app.shutdown()
-        print("👋 Goodbye!")
-
+# 1. Setup Logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
+# Silence noisy libraries
+logging.getLogger("apscheduler").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 def main():
-    print("🤖 Meeting Bot")
-    print("=" * 40)
+    print("🚀 Starting Demy Academy Bot (Render/Postgres Edition)...")
+
+    # 2. Initialize Database (Hybrid: SQLite locally, Postgres on Render)
+    init_database()
     
-    if len(sys.argv) < 2:
-        asyncio.run(run_bot_and_scheduler())
-        return
-    
-    command = sys.argv[1].lower()
-    
-    if command == "help":
-        print_help()
-    
-    elif command == "bot":
-        asyncio.run(run_bot_only())
-    
-    elif command == "scheduler":
-        init_database()
-        scheduler = setup_scheduler()
-        scheduler.start()
-        
-        # Check for postponed lessons
-        from app.scheduler import check_and_schedule_postponed_lessons
-        check_and_schedule_postponed_lessons()
-        
-        print("📅 Scheduler running! Press Ctrl+C to stop.")
+    # 3. Start Keep-Alive Server (Only needed on Render)
+    # We check if we are on Render by looking for the 'RENDER' env var (or just run it always)
+    if os.getenv("RENDER") or os.getenv("DATABASE_URL"):
         try:
-            while True:
-                pass
-        except KeyboardInterrupt:
-            scheduler.shutdown()
-            print("\n👋 Stopped")
-    
-    elif command == "list":
-        list_meetings()
-    
-    elif command == "run":
-        if len(sys.argv) < 3:
-            print("❌ Specify meeting ID")
-            list_meetings()
-        else:
-            run_meeting_now(sys.argv[2])
-    
-    elif command == "test":
-        print("🧪 Testing...")
-        meeting = create_jitsi_meeting(title="Test Meeting")
-        print(f"✅ Created: {meeting['meet_link']}")
-        meeting_bot.send_meeting_link_sync(meeting)
-        print("✅ Sent to Telegram!")
-        
-    elif command == "setup-sheets":
-        print("📊 Setting up Google Sheets...")
-        from app.services.sheets_service import setup_payments_sheet
-        setup_payments_sheet()
-        print("✅ Done!")
-    
-    else:
-        print(f"❌ Unknown command: {command}")
-        print_help()
+            from app.keep_alive import keep_alive
+            keep_alive()
+            print("🌍 Keep-Alive Server started.")
+        except Exception as e:
+            print(f"⚠️ Could not start keep-alive: {e}")
 
+    # 4. Build Bot Application
+    print("🤖 Building Bot Application...")
+    app = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
+    
+    # 5. Register Handlers (Commands, Messages, etc.)
+    register_handlers(app)
+    
+    # 6. Start Scheduler (Async)
+    # This automatically starts the checking loop for lessons
+    start_scheduler(app)
+    
+    # 7. Run Bot (Blocks until Ctrl+C)
+    print("✅ Bot is running! Press Ctrl+C to stop.")
+    app.run_polling()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
