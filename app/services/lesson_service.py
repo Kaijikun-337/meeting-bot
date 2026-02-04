@@ -289,3 +289,74 @@ def get_upcoming_lessons(meeting_id: str, days_ahead: int = 14, lang: str = 'en'
             })
     
     return upcoming
+
+def get_all_overrides_for_period(start_date_str: str, end_date_str: str) -> dict:
+    """
+    Fetch ALL overrides (cancelled/postponed) for a date range in one query.
+    Returns a dictionary:
+    {
+        'DD-MM-YYYY': {
+            'meeting_id': { ...override_data... }
+        },
+        'postponed_to': {
+            'DD-MM-YYYY': [ ...list of postponed lessons landing here... ]
+        }
+    }
+    """
+    from datetime import datetime
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # We need to convert string dates to compare them, but SQLite stores as TEXT
+    # For simplicity in this specific project, we will just fetch all active overrides
+    # because the dataset is small. A truly optimized SQL range query depends on DB type.
+    
+    cursor.execute('''
+        SELECT * FROM lesson_overrides 
+    ''')
+    
+    rows = cursor.fetchall()
+    conn.close()
+    
+    result = {
+        'by_original_date': {},
+        'by_new_date': {}
+    }
+    
+    # Parse range for filtering in Python
+    try:
+        start_dt = datetime.strptime(start_date_str, "%d-%m-%Y")
+        end_dt = datetime.strptime(end_date_str, "%d-%m-%Y")
+    except:
+        return result
+
+    for row in rows:
+        data = dict(row)
+        
+        # 1. Organize by Original Date (Cancellations / Moves FROM here)
+        orig_date = data['original_date']
+        meeting_id = data['meeting_id']
+        
+        try:
+            orig_dt = datetime.strptime(orig_date, "%d-%m-%Y")
+            if start_dt <= orig_dt <= end_dt:
+                if orig_date not in result['by_original_date']:
+                    result['by_original_date'][orig_date] = {}
+                result['by_original_date'][orig_date][meeting_id] = data
+        except:
+            pass
+
+        # 2. Organize by New Date (Moves TO here)
+        if data['override_type'] in ['postpone', 'postponed'] and data['new_date']:
+            new_date = data['new_date']
+            try:
+                new_dt = datetime.strptime(new_date, "%d-%m-%Y")
+                if start_dt <= new_dt <= end_dt:
+                    if new_date not in result['by_new_date']:
+                        result['by_new_date'][new_date] = []
+                    result['by_new_date'][new_date].append(data)
+            except:
+                pass
+                
+    return result

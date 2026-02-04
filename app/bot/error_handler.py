@@ -1,41 +1,71 @@
+import logging
 import traceback
 import html
+import json
 from datetime import datetime
 from telegram import Update
+from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
+# Import specific error types to filter them out
+from telegram.error import Conflict, NetworkError, BadRequest, TimedOut
+
 from app.config import Config
 
+# Setup professional logging
+logger = logging.getLogger(__name__)
 
-# Your Telegram chat ID (admin who receives error reports)
-ADMIN_CHAT_ID = Config.ADMIN_CHAT_ID  # Add this to your config
-
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle all errors and send report to admin."""
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle all errors, filter noise, and report critical bugs to admin."""
     
-    # Get error details
+    # 1. FILTER OUT NOISE (Don't spam Admin for these)
+    # ------------------------------------------------
+    if isinstance(context.error, Conflict):
+        # Happens during Render deployment (Old bot vs New bot fighting)
+        logger.warning("⚠️ Conflict Error: Deployment overlap detected. Ignoring.")
+        return
+    
+    if isinstance(context.error, NetworkError):
+        # Happens if Render loses connection to Telegram momentarily
+        logger.warning(f"⚠️ Network Error: {context.error}")
+        return
+
+    if isinstance(context.error, TimedOut):
+        # Telegram API was slow to respond
+        logger.warning("⚠️ Telegram TimedOut. Ignoring.")
+        return
+
+    # 2. LOG CRITICAL ERRORS
+    # ------------------------------------------------
+    logger.error("Exception while handling an update:", exc_info=context.error)
+    
+    # 3. GATHER DEBUG INFO
+    # ------------------------------------------------
     error = context.error
     error_message = str(error)
-    error_traceback = ''.join(traceback.format_exception(None, error, error.__traceback__))
+    # Limit traceback to last 3000 chars to fit in Telegram message
+    tb_list = traceback.format_exception(None, error, error.__traceback__)
+    tb_string = ''.join(tb_list)[-3000:]
     
-    # Get user info if available
     user_info = "Unknown"
     chat_info = "Unknown"
-    update_info = "No update"
+    update_info = "No update object"
     
-    if update:
+    # Check if update exists (JobQueue errors don't have an update)
+    if isinstance(update, Update):
         if update.effective_user:
             user_info = f"{update.effective_user.full_name} (ID: {update.effective_user.id})"
         if update.effective_chat:
             chat_info = f"{update.effective_chat.type} (ID: {update.effective_chat.id})"
         
-        # Get the update that caused the error
         if update.message:
-            update_info = f"Message: {update.message.text[:100] if update.message.text else 'No text'}"
+            update_info = f"Message: {update.message.text}"
         elif update.callback_query:
             update_info = f"Callback: {update.callback_query.data}"
-    
-    # Build error report
+        elif update.inline_query:
+            update_info = f"Inline: {update.inline_query.query}"
+
+    # 4. SEND REPORT TO ADMIN
+    # ------------------------------------------------
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     report = (
@@ -48,32 +78,35 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"❌ <b>Error:</b>\n"
         f"<code>{html.escape(error_message)}</code>\n\n"
         f"📋 <b>Traceback:</b>\n"
-        f"<pre>{html.escape(error_traceback[-3000:])}</pre>"  # Limit traceback length
+        f"<pre>{html.escape(tb_string)}</pre>"
     )
     
-    # Send to admin
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_CHAT_ID,
-            text=report,
-            parse_mode='HTML'
-        )
-    except Exception as e:
-        # If can't send to admin, at least log it
-        print(f"Failed to send error report: {e}")
-        print(f"Original error: {error_message}")
-        print(error_traceback)
-    
-    # Also log to console
-    print(f"🚨 ERROR: {error_message}")
-    print(error_traceback)
-    
-    # Optionally notify user that something went wrong
-    if update and update.effective_chat:
+    if Config.ADMIN_CHAT_ID:
         try:
             await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="😕 Oops! Something went wrong. The admin has been notified."
+                chat_id=Config.ADMIN_CHAT_ID,
+                text=report,
+                parse_mode=ParseMode.HTML
             )
-        except:
+        except Exception as e:
+            logger.error(f"Failed to send error report to Admin: {e}")
+
+    # 5. NOTIFY USER (Politely)
+    # ------------------------------------------------
+    if isinstance(update, Update) and update.effective_chat:
+        user_message = "😕 Oops! Something went wrong. The developers have been notified."
+        
+        try:
+            # If the error happened on a Button Click, stop the spinner!
+            if update.callback_query:
+                await update.callback_query.answer(user_message, show_alert=True)
+            # Otherwise send a text message
+            else:
+                await context.bot.send_message(
+                    chat_id=update.effective_chat.id,
+                    text=user_message
+                )
+        except Exception:
+            # If we can't even tell the user (e.g., they blocked the bot), just ignore it.
             pass
+        

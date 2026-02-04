@@ -39,8 +39,9 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     from datetime import datetime, timedelta
     import pytz
     from app.config import Config
-    from app.services.lesson_service import get_override, get_postponed_to_date
-    from app.utils.localization import get_user_language, format_date_localized, get_day_name, get_month_name
+    # IMPORT THE NEW FUNCTION
+    from app.services.lesson_service import get_all_overrides_for_period 
+    from app.utils.localization import get_user_language, format_date_localized, get_day_name
     
     tz = pytz.timezone(Config.TIMEZONE)
     now = datetime.now(tz)
@@ -50,6 +51,15 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     week_start = now - timedelta(days=days_since_monday) + timedelta(weeks=weeks_ahead)
     week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
     week_end = week_start + timedelta(days=6)
+    
+    # Formats for query
+    start_str = week_start.strftime("%d-%m-%Y")
+    end_str = week_end.strftime("%d-%m-%Y")
+    
+    # === BULK FETCH ===
+    # Get all overrides for this week in ONE go
+    overrides_data = get_all_overrides_for_period(start_str, end_str)
+    # ==================
     
     meetings = get_user_meetings(chat_id)
     
@@ -65,7 +75,6 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
         day_name_en = current_date.strftime("%A")
         day_num = current_date.weekday()
         
-        # Get translated names
         day_name = get_day_name(day_name_en, lang)
         day_short = format_date_localized(current_date, lang, 'short')
         
@@ -78,8 +87,15 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
             hour = schedule.get('hour', 0)
             minute = schedule.get('minute', 0)
             
-            override = get_override(meeting['id'], date_str)
-            postponed_here = get_postponed_to_date(meeting['id'], date_str)
+            # --- USE PRE-FETCHED DATA ---
+            # Check if this meeting has an override on this date
+            override = overrides_data['by_original_date'].get(date_str, {}).get(meeting['id'])
+            
+            # Check if any meeting was postponed TO this date
+            # We filter the list of postponed lessons to find ones for this specific meeting
+            postponed_list = overrides_data['by_new_date'].get(date_str, [])
+            postponed_here = next((p for p in postponed_list if p['meeting_id'] == meeting['id']), None)
+            # -----------------------------
             
             if day_num in meeting_days:
                 lesson_info = {
@@ -127,13 +143,12 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
         
         days.append({
             'date': date_str,
-            'day_name': day_name,  # Now translated!
-            'day_short': day_short,  # Now translated!
+            'day_name': day_name,
+            'day_short': day_short,
             'is_today': current_date.date() == now.date(),
             'lessons': lessons
         })
     
-    # Translated week range
     week_start_str = format_date_localized(week_start, lang, 'month_day')
     week_end_str = format_date_localized(week_end, lang, 'month_day')
     
@@ -141,7 +156,7 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
         'week_start': week_start_str,
         'week_end': week_end_str,
         'days': days,
-        'lang': lang  # Pass language for later use
+        'lang': lang
     }
 
 
