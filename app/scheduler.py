@@ -16,6 +16,8 @@ from app.services.user_service import (
     get_teacher_for_group, 
     get_students_in_group
 )
+# NEW IMPORT
+from app.database.db import get_connection
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -44,19 +46,16 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
 
     recipients = set()
 
-    # 1. Add Teacher
     if group_name:
         teacher = get_teacher_for_group(group_name)
         if teacher and teacher.get('chat_id'):
             recipients.add(str(teacher['chat_id']))
 
-        # 2. Add Students
         students = get_students_in_group(group_name)
         for student in students:
             if student.get('chat_id'):
                 recipients.add(str(student['chat_id']))
 
-    # 3. Fallback to manual chat_id in JSON
     if meeting_config.get('chat_id'):
         recipients.add(str(meeting_config['chat_id']))
 
@@ -64,7 +63,6 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         logger.warning(f"⚠️ No recipients found for group {group_name}")
         return
 
-    # Send to all
     for chat_id in recipients:
         try:
             await app.bot.send_message(
@@ -77,17 +75,12 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         except Exception as e:
             logger.error(f"❌ Failed to send to {chat_id}: {e}")
 
-
 async def job_send_lesson(app: Application, meeting_config: dict):
-    """
-    The main job that runs at the scheduled time.
-    Checks for cancellations/postponements before sending.
-    """
+    """The main job that runs at the scheduled time."""
     tz = pytz.timezone(Config.TIMEZONE)
     today = datetime.now(tz).strftime("%d-%m-%Y")
     meeting_id = meeting_config['id']
 
-    # 1. Check Status (Cancelled/Postponed?)
     status = check_lesson_status(meeting_id, today)
 
     if status['status'] == 'cancelled':
@@ -98,18 +91,12 @@ async def job_send_lesson(app: Application, meeting_config: dict):
         logger.info(f"⏭️ Skipping {meeting_config['title']} - POSTPONED to {status.get('new_date')}")
         return
 
-    # 2. Create Jitsi
     logger.info(f"⏰ Creating meeting: {meeting_config['title']}")
     meeting_data = create_jitsi_meeting(title=meeting_config['title'])
-
-    # 3. Send
     await send_meeting_to_recipients(app, meeting_config, meeting_data)
 
-
 async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOScheduler):
-    """
-    Runs periodically to check if any postponed lessons are due TODAY.
-    """
+    """Runs periodically to check if any postponed lessons are due TODAY."""
     tz = pytz.timezone(Config.TIMEZONE)
     now = datetime.now(tz)
     today = now.strftime("%d-%m-%Y")
@@ -126,19 +113,14 @@ async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOS
         new_hour = override['new_hour']
         new_minute = override['new_minute'] or 0
         
-        # Find config
         meeting_config = next((m for m in meetings if m['id'] == meeting_id), None)
         if not meeting_config:
             continue
         
-        # Calculate run time
         run_time = now.replace(hour=new_hour, minute=new_minute, second=0, microsecond=0)
         
-        # If the time is in the future (and hasn't been scheduled yet), schedule it
         if run_time > now:
             job_id = f"postponed_{meeting_id}_{today}"
-            
-            # Avoid duplicates
             if not scheduler.get_job(job_id):
                 logger.info(f"📅 Scheduling postponed lesson: {meeting_config['title']} at {new_hour}:{new_minute}")
                 scheduler.add_job(
@@ -153,15 +135,24 @@ async def job_send_postponed(app: Application, meeting_config: dict):
     """Sends the link for a POSTPONED lesson."""
     logger.info(f"⏰ Creating POSTPONED meeting: {meeting_config['title']}")
     meeting_data = create_jitsi_meeting(title=meeting_config['title'])
-    
-    # Send with a prefix to indicate it's the rescheduled one
     await send_meeting_to_recipients(app, meeting_config, meeting_data, prefix="🔄 <b>(Rescheduled)</b> ")
 
+# === NEW FUNCTION ===
+async def job_keep_db_alive():
+    """Pings the database to prevent Neon from sleeping (Free Tier Fix)."""
+    try:
+        # get_connection() opens a connection. 
+        # cursor.execute runs a tiny query.
+        # close() ensures we don't leak connections.
+        conn = get_connection()
+        conn.cursor().execute("SELECT 1")
+        conn.close()
+        # logger.info("💓 DB Heartbeat sent") # Uncomment to see in logs
+    except Exception as e:
+        logger.error(f"❌ DB Heartbeat failed: {e}")
 
 def start_scheduler(app: Application):
-    """
-    Initialize and start the scheduler.
-    """
+    """Initialize and start the scheduler."""
     scheduler = AsyncIOScheduler(timezone=pytz.timezone(Config.TIMEZONE))
     
     meetings = load_meetings()
@@ -171,14 +162,12 @@ def start_scheduler(app: Application):
 
     print(f"📅 Loading {len(meetings)} meetings into scheduler...")
 
-    # 1. Schedule Standard Lessons
     for m in meetings:
         schedule = m.get('schedule', {})
-        days = schedule.get('days', []) # ['monday', 'wednesday']
+        days = schedule.get('days', [])
         hour = schedule.get('hour', 9)
         minute = schedule.get('minute', 0)
         
-        # Convert ['monday', 'friday'] -> 'mon,fri'
         cron_days = ",".join([DAY_MAP.get(d.lower(), d)[:3] for d in days])
         
         if not cron_days: 
@@ -191,9 +180,8 @@ def start_scheduler(app: Application):
             id=m['id'],
             replace_existing=True
         )
-        print(f"   ✅ Added: {m['title']} ({cron_days} at {hour:02d}:{minute:02d})")
 
-    # 2. Schedule "Check for Postponed" Job (Runs every 30 mins)
+    # Check for postponed lessons every 30 mins
     scheduler.add_job(
         job_check_and_schedule_postponed,
         'interval',
@@ -203,12 +191,22 @@ def start_scheduler(app: Application):
         replace_existing=True
     )
     
-    # 3. Also run "Check Postponed" once immediately on startup
+    # Run once at startup
     scheduler.add_job(
         job_check_and_schedule_postponed,
         'date',
         run_date=datetime.now(pytz.timezone(Config.TIMEZONE)),
         args=[app, scheduler]
+    )
+
+    # === NEW HEARTBEAT JOB ===
+    # Run every 4 minutes (Neon sleeps after 5 mins)
+    scheduler.add_job(
+        job_keep_db_alive,
+        'interval',
+        minutes=4,
+        id='db_heartbeat',
+        replace_existing=True
     )
 
     scheduler.start()
