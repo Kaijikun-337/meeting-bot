@@ -9,13 +9,13 @@ from app.services.lesson_service import (
     is_slot_available_for_group
 )
 from app.services.user_service import get_teacher_for_group, get_user
-from app.services.request_service import create_change_request, get_request_status
+# REMOVED THE BAD IMPORT HERE
 from app.utils.localization import get_text, get_user_language
 from app.bot.keyboards import (
     confirm_keyboard_localized,
     reschedule_dates_keyboard,
     reschedule_times_keyboard,
-    lessons_keyboard # Ensure this exists in keyboards.py
+    lessons_keyboard
 )
 from app.config import Config
 
@@ -307,7 +307,6 @@ async def confirm_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if success:
         await query.edit_message_text(get_text(msg_key, lang))
-        # TODO: Send notifications to teacher/students here
     else:
         await query.edit_message_text("❌ Error saving change.")
         
