@@ -14,10 +14,9 @@ def is_admin(chat_id: str) -> bool:
 
 
 def get_user_meetings(chat_id: str) -> list:
-    from app.config import Config
-    from app.services.user_service import get_teacher_groups, get_user
+    from app.services.user_service import get_teacher_groups
     
-    # Admin sees all meetings
+    # 1. Admin sees everything
     if is_admin(chat_id):
         return Config.load_meetings()
     
@@ -25,20 +24,41 @@ def get_user_meetings(chat_id: str) -> list:
     if not user:
         return []
     
-    meetings = Config.load_meetings()
+    all_meetings = Config.load_meetings()
     
+    # 2. Student Logic
     if user['role'] == 'student':
-        return [m for m in meetings if m.get('group_name') == user.get('group_name')]
+        user_group = (user.get('group_name') or "").strip().lower()
+        
+        return [
+            m for m in all_meetings 
+            if (m.get('group_name') or "").strip().lower() == user_group
+        ]
+        
+    # 3. Teacher Logic
     else:
         teacher_groups = get_teacher_groups(chat_id)
-        group_names = [g['group_name'] for g in teacher_groups]
-        return [m for m in meetings if m.get('group_name') in group_names]
+        if not teacher_groups:
+            return []
+            
+        # Create a set of lowercase group names for easy matching
+        # Handle cases where DB returns None
+        my_groups = set()
+        for g in teacher_groups:
+            g_name = g.get('group_name')
+            if g_name:
+                my_groups.add(str(g_name).strip().lower())
+        
+        # Filter meetings where the group name matches one of the teacher's groups
+        return [
+            m for m in all_meetings 
+            if (m.get('group_name') or "").strip().lower() in my_groups
+        ]
 
 
 def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     from datetime import datetime, timedelta
     import pytz
-    from app.config import Config
     # IMPORT THE NEW FUNCTION
     from app.services.lesson_service import get_all_overrides_for_period 
     from app.utils.localization import get_user_language, format_date_localized, get_day_name

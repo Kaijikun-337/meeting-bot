@@ -168,12 +168,24 @@ def is_slot_available_for_group(teacher_chat_id: str, target_date: str, target_h
               AND override_type = 'postponed'
         ''', (target_date, target_hour, target_minute))
         
-        count = cursor.fetchone()[0]
+        # Handle different cursor types (tuple vs dict)
+        row = cursor.fetchone()
+        
+        # Safe extraction
+        if isinstance(row, dict):
+            # Postgres RealDictCursor returns {'count': 0}
+            count = row.get('count', 0)
+        elif row:
+            # SQLite returns (0,)
+            count = row[0]
+        else:
+            count = 0
         
         # If count > 0, the slot is taken
         return count == 0
         
     except Exception as e:
+        # Only print real errors, not "0"
         print(f"Error checking slot availability: {e}")
         return True
     finally:
@@ -181,16 +193,34 @@ def is_slot_available_for_group(teacher_chat_id: str, target_date: str, target_h
 
 def create_lesson_override(meeting_id: str, original_date: str, override_type: str, 
                            new_date: str = None, new_hour: int = None, new_minute: int = None) -> bool:
-    """Create or update a lesson override."""
+    """Create or update a lesson override (Postgres Safe)."""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
+        # 1. Check if exists
         cursor.execute('''
-            INSERT OR REPLACE INTO lesson_overrides 
-            (meeting_id, original_date, override_type, new_date, new_hour, new_minute)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (meeting_id, original_date, override_type, new_date, new_hour, new_minute))
+            SELECT 1 FROM lesson_overrides 
+            WHERE meeting_id = ? AND original_date = ?
+        ''', (meeting_id, original_date))
+        
+        exists = cursor.fetchone()
+        
+        if exists:
+            # 2. Update
+            cursor.execute('''
+                UPDATE lesson_overrides
+                SET override_type = ?, new_date = ?, new_hour = ?, new_minute = ?, status = ?
+                WHERE meeting_id = ? AND original_date = ?
+            ''', (override_type, new_date, new_hour, new_minute, override_type, meeting_id, original_date))
+        else:
+            # 3. Insert
+            cursor.execute('''
+                INSERT INTO lesson_overrides 
+                (meeting_id, original_date, override_type, new_date, new_hour, new_minute, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (meeting_id, original_date, override_type, new_date, new_hour, new_minute, override_type))
+            
         conn.commit()
         return True
     except Exception as e:
@@ -228,7 +258,7 @@ def can_change_lesson(meeting_config: dict, target_date: str) -> tuple:
 
 
 def get_upcoming_lessons(meeting_id: str, days_ahead: int = 14, lang: str = 'en') -> list:
-    """Get upcoming lesson dates for a meeting (EXCLUDING modified ones)."""
+    """Get upcoming lesson dates, INCLUDING modified ones (so we can restore them)."""
     from app.config import Config
     from app.utils.localization import get_text
     
@@ -257,35 +287,36 @@ def get_upcoming_lessons(meeting_id: str, days_ahead: int = 14, lang: str = 'en'
     for i in range(days_ahead):
         check_date = now + timedelta(days=i)
         
-        # Check if 2+ hours before (strict check to hide started/passed lessons)
+        # Simple check: ignore lessons that finished more than 2 hours ago
         lesson_time = check_date.replace(
             hour=meeting['schedule']['hour'], 
             minute=meeting['schedule']['minute']
         )
-        if lesson_time < now + timedelta(hours=2):
+        if lesson_time < now - timedelta(hours=2):
             continue
             
         if check_date.weekday() in schedule_days:
             date_str = check_date.strftime("%d-%m-%Y")
+            day_key = num_to_day_key[check_date.weekday()]
+            day_name = get_text(day_key, lang)
             
             # Check for overrides
             override = get_override(meeting_id, date_str)
             
-            # ⛔ SKIP IF ALREADY MODIFIED
+            status = "normal"
             if override:
-                continue
+                if override['override_type'] in ['cancel', 'cancelled']:
+                    status = "cancelled"
+                elif override['override_type'] in ['postpone', 'postponed']:
+                    status = "postponed"
             
-            # Get localized day name
-            day_key = num_to_day_key[check_date.weekday()]
-            day_name = get_text(day_key, lang)
-            
-            # Add normal lesson
             upcoming.append({
                 "date": date_str,
                 "day_name": day_name,
                 "hour": meeting['schedule']['hour'],
                 "minute": meeting['schedule']['minute'],
-                "status": "normal"
+                "status": status,  # <--- Now returns status instead of skipping
+                "override_info": override # Pass details if needed
             })
     
     return upcoming
@@ -360,3 +391,23 @@ def get_all_overrides_for_period(start_date_str: str, end_date_str: str) -> dict
                 pass
                 
     return result
+
+def delete_lesson_override(meeting_id: str, original_date: str) -> bool:
+    """
+    Deletes an override, effectively restoring the lesson to its original schedule.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            DELETE FROM lesson_overrides 
+            WHERE meeting_id = ? AND original_date = ?
+        ''', (meeting_id, original_date))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Error deleting override: {e}")
+        return False
+    finally:
+        conn.close()

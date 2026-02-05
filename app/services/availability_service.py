@@ -5,19 +5,34 @@ from app.database.db import get_connection
 DATE_FORMAT = "%d-%m-%Y"  # 28-01-2026
 
 
-def set_availability(teacher_chat_id: str, date_str: str, start_hour: int, end_hour: int) -> bool:
-    """
-    Set teacher's availability for a specific date.
-    """
+def set_availability(teacher_chat_id: str, date_str: str, start: int, end: int):
+    """Set availability for a specific date (Postgres Safe)."""
     conn = get_connection()
     cursor = conn.cursor()
     
     try:
+        # 1. Check if row exists
         cursor.execute('''
-            INSERT OR REPLACE INTO teacher_availability 
-            (teacher_chat_id, available_date, start_hour, end_hour)
-            VALUES (?, ?, ?, ?)
-        ''', (str(teacher_chat_id), date_str, start_hour, end_hour))
+            SELECT 1 FROM teacher_availability 
+            WHERE teacher_chat_id = ? AND available_date = ?
+        ''', (str(teacher_chat_id), date_str))
+        
+        exists = cursor.fetchone()
+        
+        if exists:
+            # 2. Update
+            cursor.execute('''
+                UPDATE teacher_availability
+                SET start_hour = ?, end_hour = ?
+                WHERE teacher_chat_id = ? AND available_date = ?
+            ''', (start, end, str(teacher_chat_id), date_str))
+        else:
+            # 3. Insert
+            cursor.execute('''
+                INSERT INTO teacher_availability (teacher_chat_id, available_date, start_hour, end_hour)
+                VALUES (?, ?, ?, ?)
+            ''', (str(teacher_chat_id), date_str, start, end))
+            
         conn.commit()
         return True
     except Exception as e:

@@ -19,25 +19,33 @@ pending_payments = {}
 
 
 def get_student_courses(chat_id: str) -> list:
-    """Get all courses for a student (uses local cache - FAST!)."""
+    """Get list of courses available for this student based on their group."""
     user = get_user(chat_id)
-    if not user:
+    if not user or not user.get('group_name'):
         return []
     
-    group_name = user.get('group_name', '')
+    group_name = user['group_name']
     student_name = user.get('name', '')
     
+    # Load prices
     price_list = Config.load_price_list()
     
     courses = []
     
+    # Iterate through courses
     for course in price_list.get('courses', []):
-        if course.get('group', '').lower() == group_name.lower():
+        # 1. Safe Group Check
+        c_group = course.get('group') or ""
+        
+        # 2. Compare (Case-Insensitive)
+        if c_group.strip().lower() == group_name.strip().lower():
+            
             subject = course.get('subject', 'Course')
             teacher = course.get('teacher', 'Teacher')
-            price = course.get('price', price_list.get('default_price', 100))
-            currency = course.get('currency', price_list.get('currency', 'USD'))
+            price = course.get('price', 100)
+            currency = course.get('currency', 'USD')
             
+            # Calculate totals
             total_paid = get_cached_total_paid(student_name, subject, teacher)
             remaining = max(0, price - total_paid)
             completed = total_paid >= price
@@ -52,7 +60,7 @@ def get_student_courses(chat_id: str) -> list:
                 'remaining': remaining,
                 'completed': completed
             })
-    
+            
     return courses
 
 

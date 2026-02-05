@@ -916,15 +916,18 @@ TRANSLATIONS = {
 
 def get_text(key: str, lang: str = 'en') -> str:
     """Get translated text by key."""
+    # SAFETY FIX: If lang is None, force 'en'
+    if lang is None:
+        lang = 'en'
+        
     if key not in TRANSLATIONS:
-        return key  # Return key if translation not found
+        return key
     
     translation = TRANSLATIONS[key]
     
     if lang in translation:
         return translation[lang]
     
-    # Fallback to English
     return translation.get('en', key)
 
 
@@ -942,7 +945,7 @@ def get_user_language(chat_id: str) -> str:
     if row and row['language']:
         return row['language']
     
-    return 'en'  # Default
+    return 'en'
 
 
 def set_user_language(chat_id: str, language: str) -> bool:

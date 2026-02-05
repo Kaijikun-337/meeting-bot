@@ -115,10 +115,19 @@ async def day_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     date_obj = datetime.strptime(date_str, "%d-%m-%Y")
     day_display = format_date_localized(date_obj, lang, 'full')
     
+    # Get keyboard
+    kb = availability_start_hour_keyboard(lang=lang)
+    
+    # Add "Clear This Day" button manually to the keyboard
+    # (Assuming keyboard is a list of lists)
+    kb.inline_keyboard.append([
+        InlineKeyboardButton("🗑 Clear This Day", callback_data="avail_clear_this_day")
+    ])
+    
     await query.edit_message_text(
         f"📅 <b>{day_display}</b>\n\n"
         f"{get_text('select_start_time', lang)}",
-        reply_markup=availability_start_hour_keyboard(lang=lang),  # ← Pass lang
+        reply_markup=kb,
         parse_mode="HTML"
     )
     return SELECT_START_HOUR
@@ -345,6 +354,7 @@ def get_availability_conversation_handler():
             SELECT_START_HOUR: [
                 CallbackQueryHandler(start_hour_selected, pattern=r"^avail_start_"),
                 CallbackQueryHandler(back_to_days, pattern=r"^avail_back$"),
+                CallbackQueryHandler(clear_current_day, pattern=r"^avail_clear_this_day$")
             ],
             SELECT_END_HOUR: [
                 CallbackQueryHandler(end_hour_selected, pattern=r"^avail_end_"),
@@ -358,3 +368,25 @@ def get_availability_conversation_handler():
         name="availability_conversation",
         persistent=False,
     )
+    
+async def clear_current_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Clear availability for the currently selected day."""
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = str(update.effective_user.id)
+    
+    if chat_id not in availability_sessions:
+        await query.edit_message_text("Session expired.")
+        return ConversationHandler.END
+        
+    date_str = availability_sessions[chat_id]["date"]
+    
+    # Call service to remove
+    from app.services.availability_service import remove_availability
+    remove_availability(chat_id, date_str)
+    
+    del availability_sessions[chat_id]
+    
+    await query.edit_message_text(f"🗑 Availability removed for {date_str}.")
+    return ConversationHandler.END

@@ -142,7 +142,15 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         lines.append(f"👥 {get_text('status_group', lang)}: {user['group_name']}")
     
     if user.get('activated_at'):
-        lines.append(f"📅 {get_text('status_registered', lang)}: {user['activated_at'][:10]}")
+        val = user['activated_at']
+        # If it's a Postgres datetime object, format it
+        if hasattr(val, 'strftime'):
+            date_str = val.strftime("%d-%m-%Y")
+        else:
+            # If it's a string (SQLite), slice it
+            date_str = str(val)[:10]
+            
+        lines.append(f"📅 {get_text('status_registered', lang)}: {date_str}")
     
     await update.message.reply_text(
         "\n".join(lines),

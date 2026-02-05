@@ -12,16 +12,13 @@ class Config:
     ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
     
     # Timezone
-    TIMEZONE = os.getenv("TIMEZONE", "UTC")
+    TIMEZONE = os.getenv("TIMEZONE", "Asia/Almaty")
     
     # Meetings config
     MEETINGS_FILE = "meetings.json"
     
     # Price list
     PRICE_LIST_FILE = "price_list.json"
-    
-    # Database
-    DATABASE_FILE = "data.db"
     
     # Google Sheets
     SHEETS_CREDENTIALS_FILE = "sheets_credentials.json"
@@ -42,15 +39,16 @@ class Config:
     
     @staticmethod
     def load_meetings() -> list:
+        full_path = Config.MEETINGS_FILE
         try:
-            with open(Config.MEETINGS_FILE, 'r', encoding='utf-8') as f:
+            with open(full_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 return data.get('meetings', [])
         except FileNotFoundError:
-            print(f"⚠️ {Config.MEETINGS_FILE} not found")
+            print(f"⚠️ {full_path} not found")
             return []
         except json.JSONDecodeError as e:
-            print(f"❌ Invalid JSON: {e}")
+            print(f"❌ Invalid JSON in {full_path}: {e}")
             return []
     
     @staticmethod
