@@ -320,3 +320,8 @@ async def cancel_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ Action cancelled.")
     return ConversationHandler.END
+
+async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Legacy handler for approvals - placeholder."""
+    query = update.callback_query
+    await query.answer("This feature is currently disabled.")

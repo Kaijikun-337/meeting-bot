@@ -2,7 +2,7 @@ from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
 from app.services.user_service import activate_user, is_registered, get_user
 from app.config import Config
-from app.bot.keyboards import main_menu_keyboard, unregistered_menu_keyboard
+from app.bot.keyboards import main_menu_keyboard
 from app.utils.localization import get_user_language, get_text, set_user_language
 
 # States
