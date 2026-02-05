@@ -427,3 +427,48 @@ def unregistered_menu_keyboard(lang: str = 'en'):
         resize_keyboard=True,
         is_persistent=True
     )
+    
+def confirm_keyboard_localized(lang: str = 'en'):
+    """Keyboard for confirming an action (Yes/No)."""
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(get_text('btn_yes', lang), callback_data="confirm_yes"),
+            InlineKeyboardButton(get_text('btn_no', lang), callback_data="confirm_no")
+        ]
+    ])
+
+def reschedule_dates_keyboard(available_dates: list, lang: str = 'en'):
+    """Keyboard for selecting a new date."""
+    keyboard = []
+    
+    # available_dates is list of {'date': 'dd-mm-yyyy', 'display': '...', ...}
+    for day in available_dates:
+        # Format: "📅 Mon 12 Oct"
+        btn_text = f"📅 {day['display']}"
+        callback = f"resched_date_{day['date']}"
+        keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback)])
+        
+    keyboard.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
+    return InlineKeyboardMarkup(keyboard)
+
+def reschedule_times_keyboard(slots: list, date_str: str, lang: str = 'en'):
+    """Keyboard for selecting a time slot."""
+    keyboard = []
+    
+    # Slots are strings "10:00", "10:30"
+    # We want 2 or 3 per row to look nice
+    row = []
+    for time_str in slots:
+        callback = f"reschedule_{time_str}_{date_str}"
+        row.append(InlineKeyboardButton(time_str, callback_data=callback))
+        
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+            
+    if row:
+        keyboard.append(row)
+        
+    # Back button
+    keyboard.append([InlineKeyboardButton(get_text('btn_back', lang), callback_data="resched_back")])
+    return InlineKeyboardMarkup(keyboard)
