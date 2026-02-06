@@ -1,5 +1,5 @@
 import pytz
-from time import datetime
+from datetime import datetime
 from app.config import Config
 
 # Supported languages
