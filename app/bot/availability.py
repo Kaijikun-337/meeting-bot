@@ -116,13 +116,18 @@ async def day_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day_display = format_date_localized(date_obj, lang, 'full')
     
     # Get keyboard
-    kb = availability_start_hour_keyboard(lang=lang)
+    base_kb = availability_start_hour_keyboard(lang=lang)
     
-    # Add "Clear This Day" button manually to the keyboard
-    # (Assuming keyboard is a list of lists)
-    kb.inline_keyboard.append([
+    # 2. Extract buttons as a LIST (convert from Tuple)
+    buttons = list(base_kb.inline_keyboard)
+    
+    # 3. Add your new button
+    buttons.append([
         InlineKeyboardButton("🗑 Clear This Day", callback_data="avail_clear_this_day")
     ])
+    
+    # 4. Create NEW markup
+    kb = InlineKeyboardMarkup(buttons)
     
     await query.edit_message_text(
         f"📅 <b>{day_display}</b>\n\n"

@@ -301,12 +301,29 @@ def get_teacher_groups(teacher_chat_id: str) -> list:
 
 
 def get_students_in_group(group_name: str) -> list:
+    """Get all students in a group (Handling multi-group students)."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE role = 'student' AND group_name = ? AND is_active = 1", (group_name,))
+    
+    # Fetch ALL active students first (safer than complex SQL LIKEs across DB types)
+    cursor.execute("SELECT * FROM users WHERE role = 'student' AND is_active = 1")
     rows = cursor.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    
+    target_group = group_name.strip().lower()
+    matched_students = []
+    
+    for row in rows:
+        student_data = dict(row)
+        raw_groups = student_data.get('group_name') or ""
+        
+        # Split "Group A, Group B" -> ["group a", "group b"]
+        student_groups = [g.strip().lower() for g in raw_groups.split(',')]
+        
+        if target_group in student_groups:
+            matched_students.append(student_data)
+            
+    return matched_students
 
 
 def get_teacher_for_group(group_name: str) -> dict:

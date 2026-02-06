@@ -66,7 +66,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # 4. SEND REPORT TO ADMIN
     # ------------------------------------------------
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
     
     report = (
         f"🚨 <b>Error Report</b>\n"

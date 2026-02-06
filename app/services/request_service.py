@@ -4,141 +4,129 @@ from app.database.db import get_connection
 from app.config import Config
 import pytz
 
+# NOTE: We do NOT import create_lesson_override at the top to avoid Circular Import errors.
+# We import it inside the function where it is used.
 
-def create_change_request(
-    meeting_id: str,
-    requester_chat_id: str,
-    requester_role: str,
-    change_type: str,
-    original_date: str,
-    new_date: str = None,
-    new_hour: int = None,
-    new_minute: int = None,
-    approvals_needed: int = 1
-) -> str:
-    """Create a new change request. Returns request_id."""
+def create_change_request(requester_id, meeting_id, original_date, change_type, new_date=None, new_hour=None, new_minute=None, approvals_needed=1):
+    """Create a new change request in the DB."""
     conn = get_connection()
     cursor = conn.cursor()
     
-    request_id = str(uuid.uuid4())[:8]
+    # Create unique request ID
+    req_uid = str(uuid.uuid4())[:8]
     
-    # Expires at end of day
-    tz = pytz.timezone(Config.TIMEZONE)
-    now = datetime.now(tz)
-    expires_at = now.replace(hour=23, minute=59, second=59)
+    # Calculate expiry (24 hours from now)
+    # Convert to ISO string for DB compatibility
+    expires_at = (datetime.now() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
     
     try:
-        cursor.execute('''
+        cursor.execute("""
             INSERT INTO change_requests 
-            (request_id, meeting_id, requester_chat_id, requester_role, 
-             change_type, original_date, new_date, new_hour, new_minute,
-             approvals_needed, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (request_id, meeting_id, str(requester_chat_id), requester_role,
-              change_type, original_date, new_date, new_hour, new_minute,
-              approvals_needed, expires_at.isoformat()))
+            (request_id, meeting_id, requester_chat_id, change_type, original_date, new_date, new_hour, new_minute, approvals_needed, approvals_received, status, expires_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 0, 'pending', %s)
+        """, (req_uid, meeting_id, str(requester_id), change_type, original_date, new_date, new_hour, new_minute, approvals_needed, expires_at))
+        
         conn.commit()
-        return request_id
+        return req_uid
     except Exception as e:
         print(f"❌ Error creating request: {e}")
         return None
     finally:
         conn.close()
-
-
-def get_request(request_id: str) -> dict:
-    """Get request by ID."""
+        
+def get_request_by_uid(request_uid):
+    """Get request details."""
     conn = get_connection()
     cursor = conn.cursor()
-    
-    cursor.execute('SELECT * FROM change_requests WHERE request_id = ?', (request_id,))
+    cursor.execute("SELECT * FROM change_requests WHERE request_id = %s", (request_uid,))
     row = cursor.fetchone()
     conn.close()
-    
     return dict(row) if row else None
 
-
-def add_approval(request_id: str, approver_chat_id: str, approved: bool) -> dict:
+def cast_vote(request_uid, voter_id, vote_val):
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Check if already voted
-    cursor.execute('SELECT id FROM approvals WHERE request_id = ? AND approver_chat_id = ?', (request_id, approver_chat_id))
-    if cursor.fetchone():
-        conn.close()
-        return {"error": "already_voted"}
+    # Import here to avoid circular dependency
+    from app.services.lesson_service import create_lesson_override
     
-    # Record vote
-    cursor.execute('''
-        INSERT INTO approvals (request_id, approver_chat_id, approved)
-        VALUES (?, ?, ?)
-    ''', (request_id, approver_chat_id, 1 if approved else 0))
-    
-    # If REJECTED (vote is NO) -> Immediately fail the request
-    if not approved:
-        cursor.execute("UPDATE change_requests SET status = 'rejected' WHERE request_id = ?", (request_id,))
+    try:
+        # 1. Check if already voted
+        cursor.execute("SELECT 1 FROM approvals WHERE request_id = %s AND approver_chat_id = %s", (request_uid, str(voter_id)))
+        if cursor.fetchone():
+            return False, False, None
+            
+        # 2. Record vote
+        cursor.execute("""
+            INSERT INTO approvals (request_id, approver_chat_id, approved)
+            VALUES (%s, %s, %s)
+        """, (request_uid, str(voter_id), vote_val))
+        
+        # 3. IF REJECTED
+        if vote_val == 0:
+            cursor.execute("UPDATE change_requests SET status = 'rejected' WHERE request_id = %s", (request_uid,))
+            conn.commit()
+            return True, True, get_request_by_uid(request_uid)
+            
+        # 4. IF APPROVED -> Increment & Check
+        cursor.execute("""
+            UPDATE change_requests 
+            SET approvals_received = approvals_received + 1 
+            WHERE request_id = %s
+        """, (request_uid,))
+        
+        # --- FIX IS HERE: Get the FRESH count ---
+        cursor.execute("SELECT * FROM change_requests WHERE request_id = %s", (request_uid,))
+        req = dict(cursor.fetchone())
+        
+        needed = req['approvals_needed']
+        received = req['approvals_received']
+        
+        if received >= needed:
+            cursor.execute("UPDATE change_requests SET status = 'approved' WHERE request_id = %s", (request_uid,))
+            
+            create_lesson_override(
+                req['meeting_id'], req['original_date'], req['change_type'],
+                req['new_date'], req['new_hour'], req['new_minute']
+            )
+            conn.commit()
+            
+            # Fetch final state to return 'approved' status
+            req['status'] = 'approved' 
+            return True, True, req
+            
         conn.commit()
+        return True, False, req
+            
+    except Exception as e:
+        print(f"Error casting vote: {e}")
+        return False, False, None
+    finally:
         conn.close()
-        return {"status": "rejected"}
-    
-    # Check if we have enough approvals
-    cursor.execute('SELECT approvals_needed, approvals_received FROM change_requests WHERE request_id = ?', (request_id,))
-    req = cursor.fetchone()
-    
-    needed = req['approvals_needed']
-    received = req['approvals_received'] + 1  # Add the one we just inserted
-    
-    # Update received count
-    cursor.execute("UPDATE change_requests SET approvals_received = ? WHERE request_id = ?", (received, request_id))
-    
-    if received >= needed:
-        cursor.execute("UPDATE change_requests SET status = 'approved' WHERE request_id = ?", (request_id,))
-        conn.commit()
-        conn.close()
-        return {"status": "approved"}
-    
-    conn.commit()
-    conn.close()
-    return {"status": "pending", "remaining": needed - received}
-
-
-def get_pending_requests_for_user(chat_id: str) -> list:
-    """Get pending requests where user needs to vote."""
-    # This is complex - we need to find requests where this user hasn't voted
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute('''
-        SELECT cr.* FROM change_requests cr
-        WHERE cr.status = 'pending'
-        AND cr.request_id NOT IN (
-            SELECT request_id FROM approvals WHERE approver_chat_id = ?
-        )
-        AND cr.expires_at > datetime('now')
-    ''', (str(chat_id),))
-    
-    rows = cursor.fetchall()
-    conn.close()
-    
-    return [dict(row) for row in rows]
-
 
 def cleanup_expired_requests():
     """Delete expired requests."""
     conn = get_connection()
     cursor = conn.cursor()
     
-    cursor.execute('''
-        UPDATE change_requests 
-        SET status = 'expired'
-        WHERE status = 'pending' AND expires_at < datetime('now')
-    ''')
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    affected = cursor.rowcount
-    conn.commit()
-    conn.close()
-    
-    if affected > 0:
-        print(f"🧹 Cleaned up {affected} expired requests")
-    
-    return affected
+    try:
+        cursor.execute('''
+            UPDATE change_requests 
+            SET status = 'expired'
+            WHERE status = 'pending' AND expires_at < %s
+        ''', (now_str,))
+        
+        affected = cursor.rowcount
+        conn.commit()
+        
+        if affected > 0:
+            print(f"🧹 Cleaned up {affected} expired requests")
+        
+        return affected
+    except Exception as e:
+        print(f"Cleanup error: {e}")
+        return 0
+    finally:
+        conn.close()

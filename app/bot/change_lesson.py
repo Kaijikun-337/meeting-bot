@@ -18,6 +18,9 @@ from app.bot.keyboards import (
     lessons_keyboard
 )
 from app.config import Config
+# Add these to existing imports
+from app.services.request_service import create_change_request, cast_vote
+from app.services.user_service import get_students_in_group
 
 # States
 SELECTING_LESSON, SELECTING_CHANGE_TYPE, CONFIRMING, SELECTING_NEW_DATE, SELECTING_NEW_TIME = range(5)
@@ -266,7 +269,7 @@ async def back_to_dates(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Execute the change (Cancel or Postpone)."""
+    """Execute the change or start voting process."""
     query = update.callback_query
     await query.answer()
     
@@ -278,38 +281,90 @@ async def confirm_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(get_text('cancelled', lang))
         return ConversationHandler.END
         
-    # Execute Change
+    # Get Data
     meeting = context.user_data['meeting']
     original_date = context.user_data['selected_date']
     change_type = context.user_data['change_type']
+    user = get_user(chat_id)
     
-    if change_type == 'cancel':
-        success = create_lesson_override(
-            meeting['id'], 
-            original_date, 
-            'cancelled'
-        )
-        msg_key = 'lesson_cancelled_success'
-    else:
+    new_date = None
+    new_hour, new_minute = None, None
+    
+    if change_type != 'cancel':
         new_date = context.user_data['new_date']
-        new_time_str = context.user_data['new_time']
-        h, m = map(int, new_time_str.split(':'))
-        
-        success = create_lesson_override(
-            meeting['id'],
-            original_date,
-            'postponed',
-            new_date=new_date,
-            new_hour=h,
-            new_minute=m
-        )
-        msg_key = 'lesson_postponed_success'
+        h, m = map(int, context.user_data['new_time'].split(':'))
+        new_hour, new_minute = h, m
+
+    # 1. Check Group Size
+    group_name = meeting.get('group_name')
+    all_students = get_students_in_group(group_name)
     
-    if success:
-        await query.edit_message_text(get_text(msg_key, lang))
-    else:
-        await query.edit_message_text("❌ Error saving change.")
+    # Identify other voters (exclude requester)
+    other_students = [s for s in all_students if str(s['chat_id']) != chat_id]
+    
+    # 2. IF SOLO STUDENT -> INSTANT CHANGE
+    if not other_students:
+        success = create_lesson_override(
+            meeting['id'], original_date, change_type, 
+            new_date, new_hour, new_minute
+        )
         
+        msg_key = 'lesson_cancelled_success' if change_type == 'cancel' else 'lesson_postponed_success'
+        
+        if success:
+            await query.edit_message_text(get_text(msg_key, lang))
+        else:
+            await query.edit_message_text("❌ Error saving change.")
+            
+        return ConversationHandler.END
+
+    # 3. IF GROUP -> START VOTE
+    else:
+        req_uid = create_change_request(
+            requester_id=chat_id,
+            meeting_id=meeting['id'],
+            original_date=original_date,
+            change_type=change_type,
+            new_date=new_date,
+            new_hour=new_hour,
+            new_minute=new_minute,
+            approvals_needed=len(other_students)
+        )
+        
+        if req_uid:
+            await query.edit_message_text(f"📩 Request sent! Waiting for {len(other_students)} other student(s) to approve.")
+            
+            # Prepare notification for others
+            # Assuming ENGLISH for system messages, or loop to localize
+            vote_kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✅ Agree", callback_data=f"approve_{req_uid}"), 
+                 InlineKeyboardButton("❌ Reject", callback_data=f"reject_{req_uid}")]
+            ])
+            
+            action_text = "CANCEL" if change_type == 'cancel' else "POSTPONE"
+            vote_msg = (
+                f"🗳 <b>Vote Required</b>\n\n"
+                f"User <b>{user['name']}</b> wants to {action_text} the {meeting['title']} lesson on {original_date}."
+            )
+            
+            if change_type != 'cancel':
+                vote_msg += f"\n👉 New Time: {new_date} at {new_hour:02d}:{new_minute:02d}"
+                
+            # Send to others
+            for s in other_students:
+                try:
+                    await context.bot.send_message(
+                        chat_id=s['chat_id'], 
+                        text=vote_msg, 
+                        reply_markup=vote_kb, 
+                        parse_mode='HTML'
+                    )
+                except Exception as e:
+                    print(f"Failed to send vote to {s['chat_id']}: {e}")
+                    
+        else:
+            await query.edit_message_text("❌ Error creating request.")
+
     return ConversationHandler.END
 
 
@@ -322,6 +377,38 @@ async def cancel_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def handle_approval(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Legacy handler for approvals - placeholder."""
+    """Handle vote clicks (Approve/Reject)."""
     query = update.callback_query
-    await query.answer("This feature is currently disabled.")
+    await query.answer()
+    
+    data = query.data.split('_')
+    action = data[0] # approve / reject
+    req_uid = data[1]
+    chat_id = str(update.effective_chat.id)
+    
+    # 1 = Yes, 0 = No
+    vote_val = 1 if action == 'approve' else 0
+    
+    success, is_completed, req_data = cast_vote(req_uid, chat_id, vote_val)
+    
+    if not success:
+        await query.edit_message_text("⚠️ You already voted or error occurred.")
+        return
+        
+    if action == 'reject':
+        await query.edit_message_text("❌ You rejected the request.")
+        # Logic to notify requester could go here
+    else:
+        await query.edit_message_text("✅ You approved.")
+        
+    if is_completed:
+        status = req_data.get('status', 'unknown')
+        
+        # Simplified notification
+        if status == 'approved':
+            msg = f"📢 <b>Update:</b> The request was APPROVED! Schedule updated."
+        else:
+            msg = f"📢 <b>Update:</b> The request was REJECTED."
+            
+        # Send to voter (update current message)
+        await query.edit_message_text(f"{query.message.text}\n\n{msg}", parse_mode='HTML')

@@ -19,12 +19,16 @@ pending_payments = {}
 
 
 def get_student_courses(chat_id: str) -> list:
-    """Get list of courses available for this student based on their group."""
+    """Get list of courses available for this student (Multi-Group support)."""
     user = get_user(chat_id)
+    # Check if user exists and has at least one group
     if not user or not user.get('group_name'):
         return []
     
-    group_name = user['group_name']
+    raw_groups = user['group_name'] or ""
+    # Split "Group A, Group B" -> ["group a", "group b"]
+    user_groups = [g.strip().lower() for g in raw_groups.split(',')]
+    
     student_name = user.get('name', '')
     
     # Load prices
@@ -32,20 +36,17 @@ def get_student_courses(chat_id: str) -> list:
     
     courses = []
     
-    # Iterate through courses
     for course in price_list.get('courses', []):
-        # 1. Safe Group Check
         c_group = course.get('group') or ""
         
-        # 2. Compare (Case-Insensitive)
-        if c_group.strip().lower() == group_name.strip().lower():
+        # Check if this course's group is in the student's list
+        if c_group.strip().lower() in user_groups:
             
             subject = course.get('subject', 'Course')
             teacher = course.get('teacher', 'Teacher')
             price = course.get('price', 100)
             currency = course.get('currency', 'USD')
             
-            # Calculate totals
             total_paid = get_cached_total_paid(student_name, subject, teacher)
             remaining = max(0, price - total_paid)
             completed = total_paid >= price
@@ -53,7 +54,7 @@ def get_student_courses(chat_id: str) -> list:
             courses.append({
                 'subject': subject,
                 'teacher': teacher,
-                'group': group_name,
+                'group': c_group, # Use the course's group name
                 'course_price': price,
                 'currency': currency,
                 'total_paid': total_paid,

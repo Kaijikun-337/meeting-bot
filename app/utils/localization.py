@@ -1,9 +1,6 @@
-# Supported languages
-LANGUAGES = {
-    'en': '🇬🇧 English',
-    'ru': '🇷🇺 Русский',
-    'uz': '🇺🇿 O\'zbekcha'
-}
+import pytz
+from time import datetime
+from app.config import Config
 
 # Supported languages
 LANGUAGES = {
@@ -930,6 +927,10 @@ def get_text(key: str, lang: str = 'en') -> str:
     
     return translation.get('en', key)
 
+def get_now():
+    """Get current time in the configured Timezone."""
+    tz = pytz.timezone(Config.TIMEZONE)
+    return datetime.now(tz)
 
 def get_user_language(chat_id: str) -> str:
     """Get user's language preference from database."""

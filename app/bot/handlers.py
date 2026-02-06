@@ -44,6 +44,7 @@ from app.bot.language import register_language_handlers
 from app.bot.error_handler import error_handler
 from app.utils.localization import get_text, get_user_language
 from app.bot.homework import get_homework_conversation_handler
+from app.bot.change_lesson import handle_approval
 
 
 # ═══════════════════════════════════════════════════════════
@@ -354,6 +355,7 @@ def register_handlers(app: Application):
     # Callback handlers
     app.add_handler(CallbackQueryHandler(handle_approval, pattern=r'^(approve_|reject_)'))
     app.add_handler(CallbackQueryHandler(schedule_navigation, pattern=r'^schedule_'))
+    app.add_handler(CallbackQueryHandler(handle_approval, pattern=r'^(approve_|reject_)'))
     app.add_handler(CallbackQueryHandler(admin_payment_decision, pattern=r'^admin_(confirm|reject)_'))
     
     # Menu button handler (catches remaining menu buttons)

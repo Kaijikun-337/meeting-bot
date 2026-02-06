@@ -14,9 +14,9 @@ def is_admin(chat_id: str) -> bool:
 
 
 def get_user_meetings(chat_id: str) -> list:
-    from app.services.user_service import get_teacher_groups
+    from app.config import Config
+    from app.services.user_service import get_teacher_groups, get_user
     
-    # 1. Admin sees everything
     if is_admin(chat_id):
         return Config.load_meetings()
     
@@ -26,35 +26,27 @@ def get_user_meetings(chat_id: str) -> list:
     
     all_meetings = Config.load_meetings()
     
-    # 2. Student Logic
     if user['role'] == 'student':
-        user_group = (user.get('group_name') or "").strip().lower()
+        # Split "Group A, Group B" -> ["group a", "group b"]
+        raw_groups = user.get('group_name') or ""
+        user_groups = [g.strip().lower() for g in raw_groups.split(',')]
         
         return [
             m for m in all_meetings 
-            if (m.get('group_name') or "").strip().lower() == user_group
+            if (m.get('group_name') or "").strip().lower() in user_groups
         ]
-        
-    # 3. Teacher Logic
     else:
+        # Teacher Logic (Already supports multiple rows in DB)
         teacher_groups = get_teacher_groups(chat_id)
         if not teacher_groups:
             return []
             
-        # Create a set of lowercase group names for easy matching
-        # Handle cases where DB returns None
-        my_groups = set()
-        for g in teacher_groups:
-            g_name = g.get('group_name')
-            if g_name:
-                my_groups.add(str(g_name).strip().lower())
+        group_names = [(g['group_name'] or "").strip().lower() for g in teacher_groups]
         
-        # Filter meetings where the group name matches one of the teacher's groups
         return [
             m for m in all_meetings 
-            if (m.get('group_name') or "").strip().lower() in my_groups
+            if (m.get('group_name') or "").strip().lower() in group_names
         ]
-
 
 def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     from datetime import datetime, timedelta
