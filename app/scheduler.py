@@ -16,8 +16,8 @@ from app.services.user_service import (
     get_teacher_for_group, 
     get_students_in_group
 )
-# NEW IMPORT
 from app.database.db import get_connection
+from app.utils.localization import get_text, get_user_language
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -31,19 +31,24 @@ def load_meetings():
     """Load meetings using Config helper."""
     return Config.load_meetings()
 
-async def send_meeting_to_recipients(app: Application, meeting_config: dict, meeting_data: dict, prefix: str = ""):
-    """Helper to send the link to teacher and students."""
-    group_name = meeting_config.get('group_name')
-    title = meeting_config.get('title')
+async def send_meeting_to_recipients(app: Application, meeting_config: dict, meeting_data: dict, prefix_key: str = None):
+    """
+    Sends localized, rich formatted message to teacher and students.
+    """
+    # 1. Gather Data
+    group_name = meeting_config.get('group_name', 'Unknown')
+    title = meeting_config.get('title', 'Lesson')
+    desc = meeting_config.get('description', '')
+    subject = meeting_config.get('subject', '')
+    teacher_name = meeting_config.get('teacher_name', '')
     link = meeting_data.get('meet_link')
     
-    # Message Text
-    msg_text = (
-        f"{prefix}<b>{title}</b>\n"
-        f"👥 Group: {group_name}\n"
-        f"🔗 <a href='{link}'>Click to Join Class</a>"
-    )
+    # Format time (e.g., 19:00)
+    # We use the schedule from config to show the "Official" time
+    sch = meeting_config.get('schedule', {})
+    time_str = f"{sch.get('hour', 0):02d}:{sch.get('minute', 0):02d}"
 
+    # 2. Gather Recipients (Set of IDs)
     recipients = set()
 
     if group_name:
@@ -56,6 +61,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
             if student.get('chat_id'):
                 recipients.add(str(student['chat_id']))
 
+    # Fallback to manual chat_id in JSON
     if meeting_config.get('chat_id'):
         recipients.add(str(meeting_config['chat_id']))
 
@@ -63,11 +69,33 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         logger.warning(f"⚠️ No recipients found for group {group_name}")
         return
 
+    # 3. Send Localized Message to Each Person
     for chat_id in recipients:
         try:
+            lang = get_user_language(chat_id)
+            
+            # Build Message Parts
+            header = get_text('lesson_alert_title', lang)
+            if prefix_key:
+                header = get_text(prefix_key, lang) + header
+                
+            details = get_text('lesson_details', lang).format(
+                title=title,
+                time=time_str,
+                group=group_name,
+                desc=desc,
+                subject=subject,
+                teacher=teacher_name
+            )
+            
+            join_section = get_text('lesson_join', lang).format(link=link)
+            footer = get_text('lesson_click_hint', lang)
+            
+            full_text = f"{header}\n\n{details}\n\n{join_section}\n\n{footer}"
+
             await app.bot.send_message(
                 chat_id=chat_id,
-                text=msg_text,
+                text=full_text,
                 parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True
             )
@@ -75,8 +103,10 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         except Exception as e:
             logger.error(f"❌ Failed to send to {chat_id}: {e}")
 
+
 async def job_send_lesson(app: Application, meeting_config: dict):
     """The main job that runs at the scheduled time."""
+    # Ensure we use Tashkent time for checking "Today"
     tz = pytz.timezone(Config.TIMEZONE)
     today = datetime.now(tz).strftime("%d-%m-%Y")
     meeting_id = meeting_config['id']
@@ -94,6 +124,7 @@ async def job_send_lesson(app: Application, meeting_config: dict):
     logger.info(f"⏰ Creating meeting: {meeting_config['title']}")
     meeting_data = create_jitsi_meeting(title=meeting_config['title'])
     await send_meeting_to_recipients(app, meeting_config, meeting_data)
+
 
 async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOScheduler):
     """Runs periodically to check if any postponed lessons are due TODAY."""
@@ -117,6 +148,10 @@ async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOS
         if not meeting_config:
             continue
         
+        # Create a temp config with the NEW time for display purposes
+        temp_config = meeting_config.copy()
+        temp_config['schedule'] = {'hour': new_hour, 'minute': new_minute}
+        
         run_time = now.replace(hour=new_hour, minute=new_minute, second=0, microsecond=0)
         
         if run_time > now:
@@ -127,7 +162,7 @@ async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOS
                     job_send_postponed,
                     'date',
                     run_date=run_time,
-                    args=[app, meeting_config],
+                    args=[app, temp_config], # Pass temp config with new time
                     id=job_id
                 )
 
@@ -135,25 +170,22 @@ async def job_send_postponed(app: Application, meeting_config: dict):
     """Sends the link for a POSTPONED lesson."""
     logger.info(f"⏰ Creating POSTPONED meeting: {meeting_config['title']}")
     meeting_data = create_jitsi_meeting(title=meeting_config['title'])
-    await send_meeting_to_recipients(app, meeting_config, meeting_data, prefix="🔄 <b>(Rescheduled)</b> ")
+    await send_meeting_to_recipients(app, meeting_config, meeting_data, prefix_key="rescheduled_prefix")
 
-# === NEW FUNCTION ===
 async def job_keep_db_alive():
-    """Pings the database to prevent Neon from sleeping (Free Tier Fix)."""
+    """Pings the database to prevent Neon from sleeping."""
     try:
-        # get_connection() opens a connection. 
-        # cursor.execute runs a tiny query.
-        # close() ensures we don't leak connections.
         conn = get_connection()
         conn.cursor().execute("SELECT 1")
         conn.close()
-        # logger.info("💓 DB Heartbeat sent") # Uncomment to see in logs
     except Exception as e:
         logger.error(f"❌ DB Heartbeat failed: {e}")
 
 def start_scheduler(app: Application):
     """Initialize and start the scheduler."""
-    scheduler = AsyncIOScheduler(timezone=pytz.timezone(Config.TIMEZONE))
+    # 1. FORCE TIMEZONE HERE
+    tz = pytz.timezone(Config.TIMEZONE)
+    scheduler = AsyncIOScheduler(timezone=tz)
     
     meetings = load_meetings()
     if not meetings:
@@ -173,15 +205,17 @@ def start_scheduler(app: Application):
         if not cron_days: 
             continue
 
+        # 2. FORCE TIMEZONE IN CRON TRIGGER
+        # This tells scheduler: "19:00 means 19:00 IN TASHKENT", not UTC.
         scheduler.add_job(
             job_send_lesson,
-            CronTrigger(day_of_week=cron_days, hour=hour, minute=minute),
+            CronTrigger(day_of_week=cron_days, hour=hour, minute=minute, timezone=tz),
             args=[app, m],
             id=m['id'],
             replace_existing=True
         )
+        print(f"   ✅ Added: {m['title']} ({cron_days} at {hour:02d}:{minute:02d} {Config.TIMEZONE})")
 
-    # Check for postponed lessons every 30 mins
     scheduler.add_job(
         job_check_and_schedule_postponed,
         'interval',
@@ -191,16 +225,14 @@ def start_scheduler(app: Application):
         replace_existing=True
     )
     
-    # Run once at startup
+    # Run check immediately on start
     scheduler.add_job(
         job_check_and_schedule_postponed,
         'date',
-        run_date=datetime.now(pytz.timezone(Config.TIMEZONE)),
+        run_date=datetime.now(tz),
         args=[app, scheduler]
     )
 
-    # === NEW HEARTBEAT JOB ===
-    # Run every 4 minutes (Neon sleeps after 5 mins)
     scheduler.add_job(
         job_keep_db_alive,
         'interval',
@@ -210,4 +242,4 @@ def start_scheduler(app: Application):
     )
 
     scheduler.start()
-    print("🚀 Scheduler started.")
+    print(f"🚀 Scheduler started in timezone: {Config.TIMEZONE}")

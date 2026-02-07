@@ -908,7 +908,52 @@ TRANSLATIONS = {
         'en': "Teaching Groups",
         'ru': "Преподаваемые группы",
         'uz': "O'qitiladigan guruhlar"
-    }
+    },
+    
+    'lesson_alert_title':{
+        'en': "🎥 <b>Lesson Time!</b>",
+        'ru': "🎥 <b>Время Урока!</b>",
+        'uz': "🎥 <b>Dars Vaqti!</b>"
+    },
+    
+    'lesson_details':{
+        'en': "📌 <b>Title:</b> {title}\n"
+              "⏰ <b>Time:</b> {time}\n"
+              "👥 <b>Group:</b> {group}\n"
+              "📝 <b>Description:</b> {desc}\n"
+              "📚 <b>Subject:</b> {subject}\n"
+              "👨‍🏫 <b>Teacher:</b> {teacher}",
+        'ru': "📌 <b>Название:</b> {title}\n"
+              "⏰ <b>Время:</b> {time}\n"
+              "👥 <b>Группа:</b> {group}\n"
+              "📝 <b>Описание:</b> {desc}\n"
+              "📚 <b>Предмет:</b> {subject}\n"
+              "👨‍🏫 <b>Учитель:</b> {teacher}",
+        'uz': "📌 <b>Mavzu:</b> {title}\n"
+            "⏰ <b>Vaqt:</b> {time}\n"
+            "👥 <b>Guruh:</b> {group}\n"
+            "📝 <b>Tavsif:</b> {desc}\n"
+            "📚 <b>Fan:</b> {subject}\n"
+            "👨‍🏫 <b>O‘qituvchi:</b> {teacher}"
+    },
+    
+    'lesson_join':{
+        'en': "🔗 <b>Join here:</b>\n{link}",
+        'ru': "🔗 <b>Ссылка для входа:</b>\n{link}",
+        'uz': "🔗 <b>Kirish uchun havola:</b>\n{link}"
+    },
+    
+    'lesson_click_hint':{
+        'en': "👆 <i>Click the link to join!</i>",
+        'ru': "👆 <i>Нажмите на ссылку, чтобы войти!</i>",
+        'uz': "👆 <i>Kirish uchun havolani bosing!</i>"
+    },
+    
+    'rescheduled_prefix':{
+        'en': "🔄 <b>(Rescheduled)</b> ",
+        'ru': "🔄 <b>(Перенесено)</b> ",
+        'uz': "🔄 <b>(Ko‘chirildi)</b> "
+    },
 }
 
 def get_text(key: str, lang: str = 'en') -> str:
