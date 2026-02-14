@@ -78,15 +78,26 @@ async def lesson_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     meeting_id = "_".join(data[1:-1])
     date_str = data[-1]
     
-    # Find the meeting object from our saved list
+    # 1. Try to find in Memory (Fastest)
     lessons = context.user_data.get('lessons', [])
     selected_lesson = next((l for l in lessons if l['meeting']['id'] == meeting_id and l['date'] == date_str), None)
     
-    if not selected_lesson:
-        await query.edit_message_text("❌ Error: Lesson not found.")
+    meeting = None
+    
+    if selected_lesson:
+        meeting = selected_lesson['meeting']
+    else:
+        # 2. Fallback: Reload from Config (Robust against Restarts)
+        from app.config import Config
+        all_meetings = Config.load_meetings()
+        meeting = next((m for m in all_meetings if m['id'] == meeting_id), None)
+
+    if not meeting:
+        await query.edit_message_text("❌ Error: Lesson configuration not found.")
         return ConversationHandler.END
 
-    context.user_data['meeting'] = selected_lesson['meeting']
+    # Save to context for the next steps
+    context.user_data['meeting'] = meeting
     context.user_data['selected_date'] = date_str
     
     lang = get_user_language(str(update.effective_chat.id))
@@ -105,7 +116,7 @@ async def lesson_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # IF MODIFIED: Show Restore
     else:
-        restore_text = "✅ Restore Original Lesson" # Add to localization later
+        restore_text = "✅ Restore Original Lesson" 
         keyboard = [
             [InlineKeyboardButton(restore_text, callback_data="change_restore")],
             [InlineKeyboardButton(get_text('btn_back', lang), callback_data="cancel_action")]

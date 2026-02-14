@@ -186,7 +186,7 @@ def add_payment(
     completed = "✅ Yes" if new_total >= course_price else "❌ No"
     
     # Prepare row data
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_str = datetime.now().strftime("%d-%m-%Y")
     row = [
         date_str,
         student_name,

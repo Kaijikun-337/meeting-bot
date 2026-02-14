@@ -26,7 +26,7 @@ def create_jitsi_meeting(
     
     # Generate unique room name
     if not room_name:
-        timestamp = datetime.now().strftime("%Y%m%d%H%M")
+        timestamp = datetime.now().strftime("%M%H%d%m%Y")
         random_id = generate_room_id(6)
         room_name = f"{clean_title}-{timestamp}-{random_id}"
     

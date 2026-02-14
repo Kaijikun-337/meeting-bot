@@ -17,7 +17,7 @@ def create_change_request(requester_id, meeting_id, original_date, change_type, 
     
     # Calculate expiry (24 hours from now)
     # Convert to ISO string for DB compatibility
-    expires_at = (datetime.now() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    expires_at = (datetime.now() + timedelta(hours=24)).strftime("%d-%m-%Y %H:%M:%S")
     
     try:
         cursor.execute("""
@@ -109,7 +109,7 @@ def cleanup_expired_requests():
     conn = get_connection()
     cursor = conn.cursor()
     
-    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
     
     try:
         cursor.execute('''

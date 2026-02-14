@@ -70,7 +70,7 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     days = []
     for i in range(7):
         current_date = week_start + timedelta(days=i)
-        date_str = current_date.strftime("%Y-%m-%d")
+        date_str = current_date.strftime("%d-%m-%Y")
         day_name = current_date.strftime("%A")
         day_num = current_date.weekday()
         
@@ -121,7 +121,7 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     return {
         'week_start': week_start.strftime("%B %d"),
         'week_end': week_end.strftime("%B %d"),
-        'week_start_date': week_start.strftime("%Y-%m-%d"),
+        'week_start_date': week_start.strftime("%d-%m-%Y"),
         'days': days
     }
 
