@@ -1,7 +1,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ChatAction
-from app.services.user_service import get_user
+from app.services.user_service import get_user, get_students_in_group # Added get_students_in_group
 from app.services.sheets_service import add_payment, get_student_payment_summary
 from app.services.payment_cache import (
     get_cached_total_paid, 
@@ -10,6 +10,9 @@ from app.services.payment_cache import (
 )
 from app.config import Config
 from app.utils.localization import get_user_language, get_text
+import logging
+
+logger = logging.getLogger(__name__)
 
 # States
 SELECTING_COURSE, ENTERING_AMOUNT, UPLOADING_PHOTO, CONFIRMING = range(4)
@@ -19,48 +22,69 @@ pending_payments = {}
 
 
 def get_student_courses(chat_id: str) -> list:
-    """Get list of courses available for this student (Multi-Group support)."""
+    """Auto-detect courses from meetings.json and apply global pricing."""
     user = get_user(chat_id)
-    # Check if user exists and has at least one group
     if not user or not user.get('group_name'):
         return []
     
     raw_groups = user['group_name'] or ""
-    # Split "Group A, Group B" -> ["group a", "group b"]
     user_groups = [g.strip().lower() for g in raw_groups.split(',')]
-    
     student_name = user.get('name', '')
     
-    # Load prices
-    price_list = Config.load_price_list()
+    # 1. Load Global Config
+    price_config = Config.load_price_list()
+    currency = price_config.get('currency', 'UZS')
+    p_individual = price_config.get('global_pricing', {}).get('individual', 120000)
+    p_group = price_config.get('global_pricing', {}).get('group', 80000)
     
+    # 2. Load Meetings to find Courses
+    all_meetings = Config.load_meetings()
+    
+    # We use a dict to avoid duplicates (e.g., if Group A has 3 Math lessons a week)
+    # Key: (Subject, Teacher, Group)
+    unique_courses = {}
+    
+    for m in all_meetings:
+        m_group = m.get('group_name') or ""
+        if m_group.strip().lower() in user_groups:
+            
+            key = (m.get('subject', 'General'), m.get('teacher_name', 'Teacher'), m_group)
+            
+            # Store it if we haven't seen this combo yet
+            if key not in unique_courses:
+                unique_courses[key] = {
+                    'subject': m.get('subject', 'General'),
+                    'teacher': m.get('teacher_name', 'Teacher'),
+                    'group': m_group
+                }
+    
+    # 3. Build Result List
     courses = []
     
-    for course in price_list.get('courses', []):
-        c_group = course.get('group') or ""
+    for course_data in unique_courses.values():
+        subject = course_data['subject']
+        teacher = course_data['teacher']
+        group = course_data['group']
         
-        # Check if this course's group is in the student's list
-        if c_group.strip().lower() in user_groups:
-            
-            subject = course.get('subject', 'Course')
-            teacher = course.get('teacher', 'Teacher')
-            price = course.get('price', 100)
-            currency = course.get('currency', 'USD')
-            
-            total_paid = get_cached_total_paid(student_name, subject, teacher)
-            remaining = max(0, price - total_paid)
-            completed = total_paid >= price
-            
-            courses.append({
-                'subject': subject,
-                'teacher': teacher,
-                'group': c_group, # Use the course's group name
-                'course_price': price,
-                'currency': currency,
-                'total_paid': total_paid,
-                'remaining': remaining,
-                'completed': completed
-            })
+        # Pricing Logic
+        students_in_group = get_students_in_group(group)
+        student_count = len(students_in_group)
+        base_price = p_individual if student_count == 1 else p_group
+        
+        total_paid = get_cached_total_paid(student_name, subject, teacher)
+        remaining = max(0, base_price - total_paid)
+        completed = total_paid >= base_price
+        
+        courses.append({
+            'subject': subject,
+            'teacher': teacher,
+            'group': group,
+            'course_price': base_price,
+            'currency': currency,
+            'total_paid': total_paid,
+            'remaining': remaining,
+            'completed': completed
+        })
             
     return courses
 
@@ -73,7 +97,7 @@ def courses_keyboard(courses: list, lang: str):
         if course['completed']:
             status = get_text('fully_paid', lang)
         else:
-            status = f"${course['remaining']:.0f} {get_text('remaining', lang)}"
+            status = f"{course['remaining']:,.0f} {get_text('remaining', lang)}"
         
         text = f"📚 {course['subject']} - {course['teacher']} ({status})"
         keyboard.append([InlineKeyboardButton(text, callback_data=f"course_{i}")])
@@ -118,12 +142,12 @@ async def pay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             status_text = get_text('fully_paid', lang)
         else:
             status_icon = "📊"
-            status_text = f"{get_text('remaining', lang)}: ${course['remaining']:.2f}"
+            status_text = f"{get_text('remaining', lang)}: {course['remaining']:,.0f}"
         
         message += (
             f"📚 <b>{course['subject']}</b> - {course['teacher']}\n"
-            f"   💵 {get_text('course_price', lang)}: ${course['course_price']:.2f}\n"
-            f"   💰 {get_text('paid', lang)}: ${course['total_paid']:.2f}\n"
+            f"   💵 {get_text('course_price', lang)}: {course['course_price']:,.0f} {course['currency']}\n"
+            f"   💰 {get_text('paid', lang)}: {course['total_paid']:,.0f}\n"
             f"   {status_icon} {status_text}\n\n"
         )
     
@@ -132,7 +156,7 @@ async def pay_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         message,
         parse_mode='HTML',
-        reply_markup=courses_keyboard(courses, lang)  # ← Pass lang
+        reply_markup=courses_keyboard(courses, lang)
     )
     
     return SELECTING_COURSE
@@ -169,9 +193,9 @@ async def course_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await query.edit_message_text(
         f"📚 <b>{course['subject']}</b> - {course['teacher']}\n\n"
-        f"💵 {get_text('course_price', lang)}: <b>${course['course_price']:.2f}</b>\n"
-        f"✅ {get_text('already_paid', lang)}: <b>${course['total_paid']:.2f}</b>\n"
-        f"📊 {get_text('remaining', lang)}: <b>${course['remaining']:.2f}</b>\n\n"
+        f"💵 {get_text('course_price', lang)}: <b>{course['course_price']:,.0f}</b>\n"
+        f"✅ {get_text('already_paid', lang)}: <b>{course['total_paid']:,.0f}</b>\n"
+        f"📊 {get_text('remaining', lang)}: <b>{course['remaining']:,.0f}</b>\n\n"
         f"💰 <b>{get_text('enter_amount', lang)}</b>\n\n"
         f"<i>{get_text('enter_amount_hint', lang).format(amount=int(course['remaining']))}</i>",
         parse_mode='HTML'
@@ -181,7 +205,7 @@ async def course_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def amount_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle amount input."""
+    """Handle amount input AND Show Payment Details."""
     chat_id = str(update.effective_user.id)
     lang = get_user_language(chat_id)
     text = update.message.text.strip()
@@ -213,25 +237,43 @@ async def amount_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     new_total = course['total_paid'] + amount
     new_remaining = max(0, course['course_price'] - new_total)
     
+    # Store amount for next step
+    context.user_data['payment']['amount'] = amount
+
+    # --- GET CARD INFO FROM CONFIG ---
+    price_list = Config.load_price_list()
+    info = price_list.get('payment_info', {})
+    card_num = info.get('card_number', 'Ask Admin')
+    holder = info.get('card_holder', '')
+    bank = info.get('bank_name', '')
+
+    card_info_block = (
+        f"\n━━━━━━━━━━━━━━━━\n"
+        f"💳 <b>{get_text('payment_details', lang)}:</b>\n"
+        f"<code>{card_num}</code>\n"
+        f"{holder}\n"
+        f"<i>{bank}</i>\n"
+        f"━━━━━━━━━━━━━━━━\n"
+        f"ℹ️ {get_text('payment_note', lang)}"
+    )
+
     if amount > course['remaining']:
-        await update.message.reply_text(
-            get_text('overpaying_warning', lang).format(
-                amount=amount,
-                remaining=course['remaining']
-            ) + f"\n\n📸 <b>{get_text('upload_receipt', lang)}</b>",
-            parse_mode='HTML'
+        msg = get_text('overpaying_warning', lang).format(
+            amount=amount,
+            remaining=course['remaining']
         )
     else:
-        await update.message.reply_text(
-            f"💰 {get_text('payment_amount', lang)}: <b>${amount:.2f}</b>\n\n"
+        msg = (
+            f"💰 {get_text('payment_amount', lang)}: <b>{amount:,.0f} {course['currency']}</b>\n\n"
             f"{get_text('after_payment', lang)}:\n"
-            f"   ✅ {get_text('total_paid', lang)}: ${new_total:.2f}\n"
-            f"   📊 {get_text('remaining', lang)}: ${new_remaining:.2f}\n\n"
-            f"📸 <b>{get_text('upload_receipt', lang)}</b>",
-            parse_mode='HTML'
+            f"   ✅ {get_text('total_paid', lang)}: {new_total:,.0f}\n"
+            f"   📊 {get_text('remaining', lang)}: {new_remaining:,.0f}"
         )
     
-    context.user_data['payment']['amount'] = amount
+    await update.message.reply_text(
+        msg + card_info_block + f"\n\n📸 <b>{get_text('upload_receipt', lang)}</b>",
+        parse_mode='HTML'
+    )
     
     return UPLOADING_PHOTO
 
@@ -257,7 +299,7 @@ async def photo_uploaded(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     new_total = course['total_paid'] + amount
     new_remaining = max(0, course['course_price'] - new_total)
-    fully_paid = get_text('yes', lang) if new_total >= course['course_price'] else f"{get_text('no', lang)} (${new_remaining:.2f} {get_text('remaining', lang).lower()})"
+    fully_paid = get_text('yes', lang) if new_total >= course['course_price'] else f"{get_text('no', lang)} ({new_remaining:,.0f})"
     
     await update.message.reply_text(
         f"📋 <b>{get_text('payment_summary', lang)}</b>\n\n"
@@ -265,9 +307,9 @@ async def photo_uploaded(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📚 {get_text('course', lang)}: {course['subject']}\n"
         f"👨‍🏫 {get_text('teacher', lang)}: {course['teacher']}\n"
         f"📖 {get_text('status_group', lang)}: {course['group']}\n\n"
-        f"💵 {get_text('course_price', lang)}: ${course['course_price']:.2f}\n"
-        f"💰 {get_text('this_payment', lang)}: ${amount:.2f}\n"
-        f"✅ {get_text('total_after', lang)}: ${new_total:.2f}\n"
+        f"💵 {get_text('course_price', lang)}: {course['course_price']:,.0f}\n"
+        f"💰 {get_text('this_payment', lang)}: {amount:,.0f}\n"
+        f"✅ {get_text('total_after', lang)}: {new_total:,.0f}\n"
         f"🎯 {get_text('fully_paid', lang)}: {fully_paid}\n\n"
         f"<b>{get_text('submit_payment_question', lang)}</b>",
         parse_mode='HTML',
@@ -325,11 +367,11 @@ async def payment_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📚 Course: {course['subject']}\n"
         f"👨‍🏫 Teacher: {course['teacher']}\n"
         f"📖 Group: {course['group']}\n\n"
-        f"💵 Course Price: ${course['course_price']:.2f}\n"
-        f"💳 Previously Paid: ${course['total_paid']:.2f}\n"
-        f"💰 <b>This Payment: ${payment['amount']:.2f}</b>\n"
-        f"📊 New Total: ${new_total:.2f}\n"
-        f"📉 Remaining: ${new_remaining:.2f}\n"
+        f"💵 Course Price: {course['course_price']:,.0f}\n"
+        f"💳 Previously Paid: {course['total_paid']:,.0f}\n"
+        f"💰 <b>This Payment: {payment['amount']:,.0f}</b>\n"
+        f"📊 New Total: {new_total:,.0f}\n"
+        f"📉 Remaining: {new_remaining:,.0f}\n"
         f"✅ Fully Paid: {completed}"
     )
     
@@ -421,14 +463,14 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
             if summary['completed']:
                 status_msg = get_text('congratulations_fully_paid', student_lang)
             else:
-                status_msg = f"📊 {get_text('remaining', student_lang)}: ${summary['remaining']:.2f}"
+                status_msg = f"📊 {get_text('remaining', student_lang)}: {summary['remaining']:,.0f}"
             
             await context.bot.send_message(
                 chat_id=payment['student_chat_id'],
                 text=get_text('payment_confirmed_notification', student_lang).format(
                     subject=payment['subject'],
-                    amount=payment['amount'],
-                    total_paid=summary['total_paid'],
+                    amount=f"{payment['amount']:,.0f}",
+                    total_paid=f"{summary['total_paid']:,.0f}",
                     status=status_msg
                 ),
                 parse_mode='HTML'
@@ -438,8 +480,8 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
                 f"✅ CONFIRMED\n\n"
                 f"Student: {payment['student_name']}\n"
                 f"Course: {payment['subject']}\n"
-                f"Amount: ${payment['amount']:.2f}\n"
-                f"Total: ${summary['total_paid']:.2f}"
+                f"Amount: {payment['amount']:,.0f}\n"
+                f"Total: {summary['total_paid']:,.0f}"
             )
             
         except Exception as e:
@@ -458,7 +500,7 @@ async def admin_payment_decision(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_caption(
             f"❌ REJECTED\n\n"
             f"Student: {payment['student_name']}\n"
-            f"Amount: ${payment['amount']:.2f}"
+            f"Amount: {payment['amount']:,.0f}"
         )
     
     del pending_payments[payment_id]

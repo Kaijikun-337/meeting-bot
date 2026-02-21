@@ -1,6 +1,6 @@
 import pytz
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from telegram.constants import ParseMode
@@ -19,7 +19,6 @@ from app.services.user_service import (
 from app.database.db import get_connection
 from app.utils.localization import get_text, get_user_language
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 DAY_MAP = {
@@ -28,14 +27,10 @@ DAY_MAP = {
 }
 
 def load_meetings():
-    """Load meetings using Config helper."""
     return Config.load_meetings()
 
 async def send_meeting_to_recipients(app: Application, meeting_config: dict, meeting_data: dict, prefix_key: str = None):
-    """
-    Sends localized, rich formatted message to teacher and students.
-    """
-    # 1. Gather Data
+    """Sends localized, rich formatted message to teacher and students."""
     group_name = meeting_config.get('group_name', 'Unknown')
     title = meeting_config.get('title', 'Lesson')
     desc = meeting_config.get('description', '')
@@ -43,12 +38,9 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
     teacher_name = meeting_config.get('teacher_name', '')
     link = meeting_data.get('meet_link')
     
-    # Format time (e.g., 19:00)
-    # We use the schedule from config to show the "Official" time
     sch = meeting_config.get('schedule', {})
     time_str = f"{sch.get('hour', 0):02d}:{sch.get('minute', 0):02d}"
 
-    # 2. Gather Recipients (Set of IDs)
     recipients = set()
 
     if group_name:
@@ -61,7 +53,6 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
             if student.get('chat_id'):
                 recipients.add(str(student['chat_id']))
 
-    # Fallback to manual chat_id in JSON
     if meeting_config.get('chat_id'):
         recipients.add(str(meeting_config['chat_id']))
 
@@ -69,23 +60,17 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         logger.warning(f"⚠️ No recipients found for group {group_name}")
         return
 
-    # 3. Send Localized Message to Each Person
     for chat_id in recipients:
         try:
             lang = get_user_language(chat_id)
             
-            # Build Message Parts
             header = get_text('lesson_alert_title', lang)
             if prefix_key:
                 header = get_text(prefix_key, lang) + header
                 
             details = get_text('lesson_details', lang).format(
-                title=title,
-                time=time_str,
-                group=group_name,
-                desc=desc,
-                subject=subject,
-                teacher=teacher_name
+                title=title, time=time_str, group=group_name,
+                desc=desc, subject=subject, teacher=teacher_name
             )
             
             join_section = get_text('lesson_join', lang).format(link=link)
@@ -103,10 +88,8 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         except Exception as e:
             logger.error(f"❌ Failed to send to {chat_id}: {e}")
 
-
 async def job_send_lesson(app: Application, meeting_config: dict):
-    """The main job that runs at the scheduled time."""
-    # Ensure we use Tashkent time for checking "Today"
+    """Send lesson link at start time."""
     tz = pytz.timezone(Config.TIMEZONE)
     today = datetime.now(tz).strftime("%d-%m-%Y")
     meeting_id = meeting_config['id']
@@ -125,17 +108,50 @@ async def job_send_lesson(app: Application, meeting_config: dict):
     meeting_data = create_jitsi_meeting(title=meeting_config['title'])
     await send_meeting_to_recipients(app, meeting_config, meeting_data)
 
+async def job_ask_recording(app: Application, meeting_config: dict):
+    """Remind teacher to upload recording after lesson."""
+    teacher_name = meeting_config.get('teacher_name')
+    group_name = meeting_config.get('group_name')
+    teacher_id = None
+    
+    if group_name:
+        teacher = get_teacher_for_group(group_name)
+        if teacher:
+            teacher_id = teacher.get('chat_id')
+            
+    if not teacher_id:
+        teacher_id = meeting_config.get('teacher_chat_id') or meeting_config.get('chat_id')
+    
+    if not teacher_id:
+        return 
+        
+    title = meeting_config.get('title')
+    
+    msg = (
+        f"🎥 <b>Lesson Finished: {title}</b>\n\n"
+        f"Please upload the video recording now.\n"
+        f"⚠️ <b>Limit:</b> 2GB (Telegram)\n"
+        f"💡 <b>Tip:</b> Use 720p resolution.\n\n"
+        f"🚀 <b>To send it to students:</b>\n"
+        f"1. Type /homework\n"
+        f"2. Upload the video\n"
+        f"3. Select the group"
+    )
+    
+    try:
+        await app.bot.send_message(chat_id=teacher_id, text=msg, parse_mode=ParseMode.HTML)
+        logger.info(f"✅ Sent recording reminder to {teacher_name}")
+    except Exception as e:
+        logger.error(f"❌ Failed to send recording reminder: {e}")
 
 async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOScheduler):
-    """Runs periodically to check if any postponed lessons are due TODAY."""
+    """Check daily for postponed lessons."""
     tz = pytz.timezone(Config.TIMEZONE)
     now = datetime.now(tz)
     today = now.strftime("%d-%m-%Y")
     
     postponed_today = get_all_postponed_to_date(today)
-    
-    if not postponed_today:
-        return
+    if not postponed_today: return
 
     meetings = load_meetings()
     
@@ -145,10 +161,9 @@ async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOS
         new_minute = override['new_minute'] or 0
         
         meeting_config = next((m for m in meetings if m['id'] == meeting_id), None)
-        if not meeting_config:
-            continue
+        if not meeting_config: continue
         
-        # Create a temp config with the NEW time for display purposes
+        # Temp config with new time
         temp_config = meeting_config.copy()
         temp_config['schedule'] = {'hour': new_hour, 'minute': new_minute}
         
@@ -157,23 +172,23 @@ async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOS
         if run_time > now:
             job_id = f"postponed_{meeting_id}_{today}"
             if not scheduler.get_job(job_id):
-                logger.info(f"📅 Scheduling postponed lesson: {meeting_config['title']} at {new_hour}:{new_minute}")
+                logger.info(f"📅 Scheduling postponed: {meeting_config['title']} at {new_hour}:{new_minute}")
                 scheduler.add_job(
                     job_send_postponed,
                     'date',
                     run_date=run_time,
-                    args=[app, temp_config], # Pass temp config with new time
+                    args=[app, temp_config],
                     id=job_id
                 )
 
 async def job_send_postponed(app: Application, meeting_config: dict):
-    """Sends the link for a POSTPONED lesson."""
+    """Send link for postponed lesson."""
     logger.info(f"⏰ Creating POSTPONED meeting: {meeting_config['title']}")
     meeting_data = create_jitsi_meeting(title=meeting_config['title'])
     await send_meeting_to_recipients(app, meeting_config, meeting_data, prefix_key="rescheduled_prefix")
 
 async def job_keep_db_alive():
-    """Pings the database to prevent Neon from sleeping."""
+    """Heartbeat."""
     try:
         conn = get_connection()
         conn.cursor().execute("SELECT 1")
@@ -183,13 +198,12 @@ async def job_keep_db_alive():
 
 def start_scheduler(app: Application):
     """Initialize and start the scheduler."""
-    # 1. FORCE TIMEZONE HERE
     tz = pytz.timezone(Config.TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=tz)
     
     meetings = load_meetings()
     if not meetings:
-        print("⚠️ No meetings configured in meetings.json")
+        print("⚠️ No meetings configured")
         return
 
     print(f"📅 Loading {len(meetings)} meetings into scheduler...")
@@ -201,45 +215,40 @@ def start_scheduler(app: Application):
         minute = schedule.get('minute', 0)
         
         cron_days = ",".join([DAY_MAP.get(d.lower(), d)[:3] for d in days])
-        
-        if not cron_days: 
-            continue
+        if not cron_days: continue
 
-        # 2. FORCE TIMEZONE IN CRON TRIGGER
-        # This tells scheduler: "19:00 means 19:00 IN TASHKENT", not UTC.
+        # --- THE OVERLAP FIX IS HERE ---
+        # We use dict(m) to create a COPY of the meeting data.
+        # This prevents the "Reference Bug" where all jobs point to the last meeting.
         scheduler.add_job(
             job_send_lesson,
             CronTrigger(day_of_week=cron_days, hour=hour, minute=minute, timezone=tz),
-            args=[app, m],
+            args=[app, dict(m)], 
             id=m['id'],
             replace_existing=True
         )
-        print(f"   ✅ Added: {m['title']} ({cron_days} at {hour:02d}:{minute:02d} {Config.TIMEZONE})")
 
-    scheduler.add_job(
-        job_check_and_schedule_postponed,
-        'interval',
-        minutes=30,
-        args=[app, scheduler],
-        id='check_postponed_interval',
-        replace_existing=True
-    )
-    
-    # Run check immediately on start
-    scheduler.add_job(
-        job_check_and_schedule_postponed,
-        'date',
-        run_date=datetime.now(tz),
-        args=[app, scheduler]
-    )
+        # Recording Reminder Job
+        duration = m.get('duration_minutes', 60)
+        end_minute = minute + duration
+        end_hour = hour + (end_minute // 60)
+        end_minute = end_minute % 60
+        end_hour = end_hour % 24
+        
+        scheduler.add_job(
+            job_ask_recording,
+            CronTrigger(day_of_week=cron_days, hour=end_hour, minute=end_minute, timezone=tz),
+            args=[app, dict(m)],
+            id=f"{m['id']}_rec",
+            replace_existing=True
+        )
+        
+        print(f"   ✅ {m['title']}: Link @ {hour:02d}:{minute:02d}")
 
-    scheduler.add_job(
-        job_keep_db_alive,
-        'interval',
-        minutes=4,
-        id='db_heartbeat',
-        replace_existing=True
-    )
+    # Maintenance Jobs
+    scheduler.add_job(job_check_and_schedule_postponed, 'interval', minutes=30, args=[app, scheduler], id='check_postponed_interval', replace_existing=True)
+    scheduler.add_job(job_check_and_schedule_postponed, 'date', run_date=datetime.now(tz), args=[app, scheduler])
+    scheduler.add_job(job_keep_db_alive, 'interval', minutes=4, id='db_heartbeat', replace_existing=True)
 
     scheduler.start()
     print(f"🚀 Scheduler started in timezone: {Config.TIMEZONE}")
