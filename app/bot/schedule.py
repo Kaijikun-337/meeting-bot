@@ -70,7 +70,11 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     
     # === BULK FETCH ===
     # Get all overrides for this week in ONE go
-    overrides_data = get_all_overrides_for_period(start_str, end_str)
+    try:
+        overrides_data = get_all_overrides_for_period(start_str, end_str)
+    except Exception as e:
+        print(f"⚠️ DB Connection Failed (Using Offline Schedule): {e}")
+        overrides_data = {'by_original_date': {}, 'by_new_date': {}}
     # ==================
     
     meetings = get_user_meetings(chat_id)
