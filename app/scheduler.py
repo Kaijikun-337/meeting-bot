@@ -195,6 +195,10 @@ async def job_keep_db_alive():
         conn.close()
     except Exception as e:
         logger.error(f"❌ DB Heartbeat failed: {e}")
+        
+# Helper to freeze data
+def create_job_args(app, meeting):
+    return [app, dict(meeting)]
 
 def start_scheduler(app: Application):
     """Initialize and start the scheduler."""
@@ -217,18 +221,18 @@ def start_scheduler(app: Application):
         cron_days = ",".join([DAY_MAP.get(d.lower(), d)[:3] for d in days])
         if not cron_days: continue
 
-        # --- THE OVERLAP FIX IS HERE ---
-        # We use dict(m) to create a COPY of the meeting data.
-        # This prevents the "Reference Bug" where all jobs point to the last meeting.
+        # 1. SEND LINK JOB (Start Time)
+        # Use factory to freeze 'm' and add grace time
         scheduler.add_job(
             job_send_lesson,
             CronTrigger(day_of_week=cron_days, hour=hour, minute=minute, timezone=tz),
-            args=[app, dict(m)], 
+            args=create_job_args(app, m), 
             id=m['id'],
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60 # Allow 60s delay if CPU busy
         )
 
-        # Recording Reminder Job
+        # 2. ASK RECORDING JOB (End Time)
         duration = m.get('duration_minutes', 60)
         end_minute = minute + duration
         end_hour = hour + (end_minute // 60)
@@ -238,9 +242,10 @@ def start_scheduler(app: Application):
         scheduler.add_job(
             job_ask_recording,
             CronTrigger(day_of_week=cron_days, hour=end_hour, minute=end_minute, timezone=tz),
-            args=[app, dict(m)],
+            args=create_job_args(app, m),
             id=f"{m['id']}_rec",
-            replace_existing=True
+            replace_existing=True,
+            misfire_grace_time=60
         )
         
         print(f"   ✅ {m['title']}: Link @ {hour:02d}:{minute:02d}")
@@ -248,7 +253,7 @@ def start_scheduler(app: Application):
     # Maintenance Jobs
     scheduler.add_job(job_check_and_schedule_postponed, 'interval', minutes=30, args=[app, scheduler], id='check_postponed_interval', replace_existing=True)
     scheduler.add_job(job_check_and_schedule_postponed, 'date', run_date=datetime.now(tz), args=[app, scheduler])
-    scheduler.add_job(job_keep_db_alive, 'interval', minutes=4, id='db_heartbeat', replace_existing=True)
+    # Note: Heartbeat removed for free tier
 
     scheduler.start()
     print(f"🚀 Scheduler started in timezone: {Config.TIMEZONE}")
