@@ -16,6 +16,7 @@ from app.services.user_service import (
 )
 from app.database.db import get_connection
 from app.utils.localization import get_user_language, get_text
+from app.services.attendance_service import get_student_attendance_stats
 
 # States
 ENTERING_NAME, ENTERING_GROUP = range(2)
@@ -447,3 +448,58 @@ async def edit_teacher_subject_step(update: Update, context: ContextTypes.DEFAUL
     
     await update.message.reply_text("✅ Teacher updated.")
     return ConversationHandler.END
+
+async def check_attendance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin: Check attendance stats."""
+    if not is_admin(update.effective_user.id):
+        return
+
+    # Check if arguments provided (/attendance 12345)
+    args = context.args
+    if args:
+        student_id = args[0]
+        await show_student_stats(update, student_id)
+        return
+
+    # Otherwise show list of students
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, chat_id FROM users WHERE role='student' AND is_active=1 ORDER BY name")
+    students = cursor.fetchall()
+    conn.close()
+    
+    if not students:
+        await update.message.reply_text("No students found.")
+        return
+        
+    msg = "👥 <b>Select a Student to view Attendance:</b>\n\n"
+    for s in students:
+        msg += f"• {s['name']} (<code>{s['chat_id']}</code>)\n"
+        
+    msg += "\nType <code>/attendance STUDENT_ID</code> to view details."
+    
+    await update.message.reply_text(msg, parse_mode='HTML')
+
+async def show_student_stats(update: Update, student_id: str):
+    """Show detailed stats for one student."""
+    user = get_user(student_id)
+    if not user:
+        await update.message.reply_text("❌ User not found.")
+        return
+
+    stats = get_student_attendance_stats(student_id)
+    
+    msg = (
+        f"📊 <b>Attendance Report: {user['name']}</b>\n"
+        f"Rate: <b>{stats['percentage']:.1f}%</b>\n"
+        f"Classes: {stats['present']} / {stats['total']}\n\n"
+        f"<b>Recent History:</b>\n"
+    )
+    
+    # Show last 10 lessons
+    for record in stats['history'][:10]:
+        icon = "✅" if record['status'] == 'present' else "❌"
+        # We could lookup meeting title from ID, but ID is usually descriptive enough
+        msg += f"{icon} {record['date']} ({record['meeting_id']})\n"
+        
+    await update.message.reply_text(msg, parse_mode='HTML')

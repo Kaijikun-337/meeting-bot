@@ -5,6 +5,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from telegram.constants import ParseMode
 from telegram.ext import Application
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.config import Config
 from app.jitsi_meet import create_jitsi_meeting
@@ -109,11 +110,12 @@ async def job_send_lesson(app: Application, meeting_config: dict):
     await send_meeting_to_recipients(app, meeting_config, meeting_data)
 
 async def job_ask_recording(app: Application, meeting_config: dict):
-    """Remind teacher to upload recording after lesson."""
+    """Remind teacher to upload recording AND mark attendance."""
     teacher_name = meeting_config.get('teacher_name')
     group_name = meeting_config.get('group_name')
-    teacher_id = None
     
+    # 1. Find Teacher
+    teacher_id = None
     if group_name:
         teacher = get_teacher_for_group(group_name)
         if teacher:
@@ -127,7 +129,8 @@ async def job_ask_recording(app: Application, meeting_config: dict):
         
     title = meeting_config.get('title')
     
-    msg = (
+    # 2. Send Video Reminder
+    msg_video = (
         f"🎥 <b>Lesson Finished: {title}</b>\n\n"
         f"Please upload the video recording now.\n"
         f"⚠️ <b>Limit:</b> 2GB (Telegram)\n"
@@ -139,10 +142,28 @@ async def job_ask_recording(app: Application, meeting_config: dict):
     )
     
     try:
-        await app.bot.send_message(chat_id=teacher_id, text=msg, parse_mode=ParseMode.HTML)
+        await app.bot.send_message(chat_id=teacher_id, text=msg_video, parse_mode=ParseMode.HTML)
         logger.info(f"✅ Sent recording reminder to {teacher_name}")
     except Exception as e:
         logger.error(f"❌ Failed to send recording reminder: {e}")
+
+    # 3. Send Attendance Reminder (Separate Message)
+    date_str = datetime.now(pytz.timezone(Config.TIMEZONE)).strftime("%d-%m-%Y")
+    callback_data = f"attend_{meeting_config['id']}_{date_str}"
+    
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📝 Mark Attendance", callback_data=callback_data)]
+    ])
+    
+    msg_attend = (
+        f"📋 <b>Attendance Check</b>\n"
+        f"Please mark who was present for <b>{group_name}</b>."
+    )
+    
+    try:
+        await app.bot.send_message(chat_id=teacher_id, text=msg_attend, reply_markup=kb, parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logger.error(f"❌ Failed to send attendance reminder: {e}")
 
 async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOScheduler):
     """Check daily for postponed lessons."""

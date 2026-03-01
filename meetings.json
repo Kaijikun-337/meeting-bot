@@ -61,12 +61,12 @@
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Мухаммад",
       "duration_minutes": 60,
-      "teacher_name": "Sardor",
+      "teacher_name": "Sarvar",
       "subject": "Английский",
       "group_name": "Group Mu",
       "schedule": {
         "days": ["monday", "wednesday", "friday"],
-        "hour": 14,
+        "hour": 12,
         "minute": 0
       }
     },

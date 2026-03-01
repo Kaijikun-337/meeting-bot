@@ -36,7 +36,7 @@ from app.bot.admin import (
 )
 
 from app.bot.menu_handler import handle_menu_buttons, cancel_on_menu_button, is_button
-from app.bot.keyboards import main_menu_keyboard, MENU_BUTTONS
+from app.bot.keyboards import MENU_BUTTONS
 from app.services.user_service import get_user, get_teacher_groups
 from app.config import Config
 from app.bot.availability import get_availability_conversation_handler
@@ -45,6 +45,8 @@ from app.bot.error_handler import error_handler
 from app.utils.localization import get_text, get_user_language
 from app.bot.homework import get_homework_conversation_handler
 from app.bot.change_lesson import handle_approval
+from app.bot.attendance import start_attendance, toggle_student, submit_attendance
+from app.bot.admin import check_attendance_command
 
 
 # ═══════════════════════════════════════════════════════════
@@ -348,6 +350,7 @@ def register_handlers(app: Application):
     app.add_handler(CommandHandler('status', status_command))
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('users', list_users_command))
+    app.add_handler(CommandHandler('attendance', check_attendance_command))
     
     # Language handlers
     register_language_handlers(app)
@@ -357,6 +360,9 @@ def register_handlers(app: Application):
     app.add_handler(CallbackQueryHandler(schedule_navigation, pattern=r'^schedule_'))
     app.add_handler(CallbackQueryHandler(handle_approval, pattern=r'^(approve_|reject_)'))
     app.add_handler(CallbackQueryHandler(admin_payment_decision, pattern=r'^admin_(confirm|reject)_'))
+    app.add_handler(CallbackQueryHandler(start_attendance, pattern=r"^attend_"))
+    app.add_handler(CallbackQueryHandler(toggle_student, pattern=r"^att_toggle_"))
+    app.add_handler(CallbackQueryHandler(submit_attendance, pattern=r"^att_submit"))
     
     # Menu button handler (catches remaining menu buttons)
     app.add_handler(MessageHandler(menu_button_filter, handle_menu_buttons))
