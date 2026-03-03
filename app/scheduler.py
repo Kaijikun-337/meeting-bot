@@ -45,14 +45,25 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
     recipients = set()
 
     if group_name:
+        # A. Database Teacher (Priority)
         teacher = get_teacher_for_group(group_name)
         if teacher and teacher.get('chat_id'):
             recipients.add(str(teacher['chat_id']))
+            logger.info(f"   Using DB Teacher for {group_name}")
+            
+        # B. Fallback JSON Teacher
+        elif meeting_config.get('teacher_chat_id'):
+            recipients.add(str(meeting_config['teacher_chat_id']))
 
+        # C. Students
         students = get_students_in_group(group_name)
         for student in students:
             if student.get('chat_id'):
                 recipients.add(str(student['chat_id']))
+                
+    # D. Fallback for Private/Ungrouped Lessons
+    elif meeting_config.get('chat_id'):
+        recipients.add(str(meeting_config['chat_id']))    
 
     if meeting_config.get('chat_id'):
         recipients.add(str(meeting_config['chat_id']))
