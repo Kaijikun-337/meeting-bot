@@ -145,12 +145,12 @@
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Феруза",
       "duration_minutes": 60,
-      "teacher_name": "Sardor",
+      "teacher_name": "Aziz",
       "subject": "Английский",
       "group_name": "Group Fe",
       "schedule": {
         "days": ["tuesday", "thursday", "saturday"],
-        "hour": 16,
+        "hour": 17,
         "minute": 0
       }
     },
@@ -159,12 +159,12 @@
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Милена",
       "duration_minutes": 60,
-      "teacher_name": "Sardor",
+      "teacher_name": "Aziz",
       "subject": "Английский",
       "group_name": "Group Mi",
       "schedule": {
         "days": ["tuesday", "thursday", "saturday"],
-        "hour": 18,
+        "hour": 19,
         "minute": 0
       }
     },
