@@ -18,10 +18,17 @@ from app.database.db import get_connection
 from app.utils.localization import get_user_language, get_text
 from app.services.attendance_service import get_student_attendance_stats
 
-# States
-ENTERING_NAME, ENTERING_GROUP = range(2)
-# Note: We removed ENTERING_SUBJECT and ADDING_MORE_GROUPS as they are no longer used
+# ═══════════════════════════════════════════════════════════
+# UNIQUE STATES (Fixed to prevent shadowing)
+# ═══════════════════════════════════════════════════════════
 
+# New User Creation States
+ENTERING_NAME_STUDENT = 20
+ENTERING_GROUP_STUDENT = 21
+ENTERING_NAME_TEACHER = 22
+ENTERING_NAME_SUPPORT = 24
+
+# Edit/Delete States
 (
     EDIT_USER_CHAT,
     EDIT_STUDENT_NAME,
@@ -31,99 +38,104 @@ ENTERING_NAME, ENTERING_GROUP = range(2)
     EDIT_TEACHER_SUBJECT,
     DELETE_USER_CHAT,
     DELETE_USER_CONFIRM,
-) = range(4, 12) 
+) = range(4, 12)
+
+# Legacy aliases (for compatibility if needed)
+ENTERING_NAME = ENTERING_NAME_STUDENT 
+ENTERING_GROUP = ENTERING_GROUP_STUDENT
+
+# ═══════════════════════════════════════════════════════════
+# ADMIN LOGIC
+# ═══════════════════════════════════════════════════════════
 
 def is_admin(chat_id: str) -> bool:
     """Check if user is admin."""
     return str(chat_id) == str(Config.ADMIN_CHAT_ID)
 
-
 async def new_student_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /new_student command (admin only)."""
     chat_id = str(update.effective_chat.id)
-    
     if not is_admin(chat_id):
         await update.message.reply_text("❌ Admin only command.")
         return ConversationHandler.END
     
     context.user_data['new_user'] = {'role': 'student'}
-    
     await update.message.reply_text(
         "👨‍🎓 <b>New Student Registration</b>\n\n"
         "Enter the student's <b>full name</b>:",
         parse_mode='HTML'
     )
-    
-    return ENTERING_NAME
-
+    return ENTERING_NAME_STUDENT
 
 async def new_teacher_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /new_teacher command (admin only)."""
     chat_id = str(update.effective_chat.id)
-    
     if not is_admin(chat_id):
         await update.message.reply_text("❌ Admin only command.")
         return ConversationHandler.END
     
     context.user_data['new_user'] = {'role': 'teacher'}
-    
     await update.message.reply_text(
         "👨‍🏫 <b>New Teacher Registration</b>\n\n"
         "Enter the teacher's <b>full name</b>:\n"
         "<i>(Must match the name in the schedule file exactly)</i>",
         parse_mode='HTML'
     )
-    
-    return ENTERING_NAME
+    return ENTERING_NAME_TEACHER
 
+async def new_support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /new_support command (admin only)."""
+    chat_id = str(update.effective_chat.id)
+    if not is_admin(chat_id):
+        return ConversationHandler.END
+    
+    context.user_data['new_user'] = {'role': 'support'}
+    await update.message.reply_text(
+        "🛠 <b>New Academic Support Registration</b>\n\n"
+        "Enter the staff member's <b>full name</b>:",
+        parse_mode='HTML'
+    )
+    return ENTERING_NAME_SUPPORT
 
 async def name_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle name input for new user."""
     name = update.message.text.strip()
+    if 'new_user' not in context.user_data:
+        return ConversationHandler.END
+
     context.user_data['new_user']['name'] = name
     role = context.user_data['new_user']['role']
     
-    # === STUDENT FLOW ===
     if role == 'student':
         await update.message.reply_text(
-            f"👤 Name: <b>{name}</b>\n\n"
-            "Enter the student's <b>group name</b>:",
+            f"👤 Name: <b>{name}</b>\n\nEnter <b>group name</b>:",
             parse_mode='HTML'
         )
-        return ENTERING_GROUP
+        return ENTERING_GROUP_STUDENT
 
-    # === TEACHER FLOW (New Automatic Logic) ===
-    else:
-        # Create pending teacher immediately
+    elif role == 'teacher':
         key = create_pending_user(name, 'teacher')
-        
         if key:
             await update.message.reply_text(
-                f"✅ <b>Teacher Created!</b>\n\n"
-                f"👤 Name: {name}\n"
-                f"🔑 <b>Registration Key:</b>\n"
-                f"<code>{key}</code>\n\n"
-                f"ℹ️ <b>Note:</b> Groups will be automatically assigned from the schedule when they register.\n\n"
-                f"Share this key with the teacher.\n"
-                f"They use /start and enter this key to activate.",
+                f"✅ <b>Teacher Created!</b>\n\nName: {name}\n🔑 Key: <code>{key}</code>",
                 parse_mode='HTML'
             )
         else:
             await update.message.reply_text("❌ Error creating teacher.")
-        
-        # End conversation immediately for teachers
         return ConversationHandler.END
 
+    elif role == 'support':
+        key = create_pending_user(name, 'support')
+        await update.message.reply_text(
+            f"✅ <b>Support Created!</b>\n\nName: {name}\n🔑 Key: <code>{key}</code>",
+            parse_mode='HTML'
+        )
+        return ConversationHandler.END
 
 async def group_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle group input (Students Only)."""
     group = update.message.text.strip()
     
-    # Double check this is a student (should be, based on logic above)
-    if context.user_data['new_user']['role'] == 'student':
-        context.user_data['new_user']['group'] = group
-        
-        # Create student
+    if context.user_data.get('new_user', {}).get('role') == 'student':
         name = context.user_data['new_user']['name']
         key = create_pending_user(name, 'student', group)
         
@@ -133,18 +145,18 @@ async def group_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
                 f"👤 Name: {name}\n"
                 f"📚 Group: {group}\n\n"
                 f"🔑 <b>Registration Key:</b>\n"
-                f"<code>{key}</code>\n\n"
-                f"Share this key with the student.\n"
-                f"They use /start and enter this key to activate.",
+                f"<code>{key}</code>",
                 parse_mode='HTML'
             )
         else:
             await update.message.reply_text("❌ Error creating student.")
-        
-        return ConversationHandler.END
     
     return ConversationHandler.END
 
+# ═══════════════════════════════════════════════════════════
+# REMAINDER OF FILE (Keep your existing functions exactly as they are)
+# list_users_command, cancel_admin, delete_user_command, etc.
+# ═══════════════════════════════════════════════════════════
 
 async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """List all registered users."""
@@ -520,20 +532,3 @@ async def new_support_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
     
     return ENTERING_NAME
-
-async def name_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    name = update.message.text.strip()
-    role = context.user_data['new_user']['role']
-    
-    if role == 'support':
-        # Create immediately (no groups needed)
-        key = create_pending_user(name, 'support')
-        
-        await update.message.reply_text(
-            f"✅ <b>Support Staff Created!</b>\n\n"
-            f"👤 Name: {name}\n"
-            f"🔑 Key: <code>{key}</code>\n\n"
-            f"Share this key. They use /start to activate.",
-            parse_mode='HTML'
-        )
-        return ConversationHandler.END

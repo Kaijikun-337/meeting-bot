@@ -197,20 +197,6 @@
       }
     },
     {
-      "id": "en_weekday_2000_group_mr",
-      "title": "Английский язык",
-      "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Макар, Рада",
-      "duration_minutes": 60,
-      "teacher_name": "Sardor",
-      "subject": "Английский",
-      "group_name": "Group M/R",
-      "schedule": {
-        "days": ["saturday"],
-        "hour":20,
-        "minute": 0
-      }
-    },
-    {
       "id": "en_odd_2030_group_sra",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Самир, Руслан, Амир",
@@ -243,7 +229,7 @@
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Макар",
       "duration_minutes": 60,
-      "teacher_name": "Sardor",
+      "teacher_name": "Timur",
       "subject": "Математика",
       "group_name": "Group Ma",
       "schedule": {

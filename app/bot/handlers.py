@@ -29,10 +29,11 @@ from app.bot.admin import (
     edit_student_command, edit_user_chat_entered, edit_student_name, edit_student_group,
     edit_teacher_command, edit_teacher_chat_entered, edit_teacher_name_step,
     edit_teacher_group_step, edit_teacher_subject_step, new_support_command,
-    ENTERING_NAME, ENTERING_GROUP as ADMIN_ENTERING_GROUP,
+    ENTERING_GROUP as ADMIN_ENTERING_GROUP,
     EDIT_USER_CHAT, EDIT_STUDENT_NAME, EDIT_STUDENT_GROUP,
     EDIT_TEACHER_NAME, EDIT_TEACHER_GROUP, EDIT_TEACHER_SUBJECT,
-    DELETE_USER_CHAT, DELETE_USER_CONFIRM
+    DELETE_USER_CHAT, DELETE_USER_CONFIRM, ENTERING_NAME_STUDENT,
+    ENTERING_NAME_TEACHER, ENTERING_NAME_SUPPORT
 )
 
 from app.bot.menu_handler import handle_menu_buttons, cancel_on_menu_button, is_button
@@ -47,7 +48,6 @@ from app.bot.homework import get_homework_conversation_handler
 from app.bot.change_lesson import handle_approval
 from app.bot.attendance import start_attendance, toggle_student, submit_attendance
 from app.bot.admin import check_attendance_command
-
 
 # ═══════════════════════════════════════════════════════════
 # MULTILINGUAL BUTTON FILTERS
@@ -218,7 +218,7 @@ def register_handlers(app: Application):
             MessageHandler(filters.Regex('^👤 New Student$'), new_student_command)
         ],
         states={
-            ENTERING_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, name_entered_admin)],
+            ENTERING_NAME_STUDENT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, name_entered_admin)],
             ADMIN_ENTERING_GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, group_entered_admin)]
         },
         fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
@@ -232,8 +232,8 @@ def register_handlers(app: Application):
             MessageHandler(filters.Regex('^👤 New Teacher$'), new_teacher_command)
         ],
         states={
-            ENTERING_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, name_entered_admin)],
-            ADMIN_ENTERING_GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, group_entered_admin)],
+            ENTERING_NAME_TEACHER: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_entered_admin)],
+            ADMIN_ENTERING_GROUP: [MessageHandler(filters.TEXT & ~filters.COMMAND, group_entered_admin)]
         },
         fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
         per_message=False
@@ -330,11 +330,15 @@ def register_handlers(app: Application):
     
         # Admin: New Support
     new_support_handler = ConversationHandler(
-        entry_points=[CommandHandler('new_support', new_support_command)],
+        entry_points=[
+            CommandHandler('new_support', new_support_command),
+            MessageHandler(filters.Regex('^🧑‍🏫 Academic Support$'), new_support_command)
+        ],
         states={
-            ENTERING_NAME: [MessageHandler(filters.TEXT, name_entered_admin)]   
+            ENTERING_NAME_SUPPORT: [MessageHandler(filters.TEXT, name_entered_admin)]   
         },
-        fallbacks=[CommandHandler('cancel', cancel_admin)]
+        fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
+        per_message=False
     )
     
     from app.bot.support import (
