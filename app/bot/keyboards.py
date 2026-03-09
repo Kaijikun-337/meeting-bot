@@ -2,7 +2,8 @@ from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    KeyboardButton
+    KeyboardButton,
+    ReplyKeyboardRemove  # 🟢 ADDED THIS IMPORT
 )
 from app.utils.localization import get_text, get_user_language
 
@@ -18,7 +19,8 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
         keyboard = [
             [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
             [KeyboardButton(get_text('btn_new_student', lang)), KeyboardButton(get_text('btn_new_teacher', lang))],
-            [KeyboardButton(get_text('btn_users', lang)), KeyboardButton(get_text('btn_status', lang))],
+            # 🟢 REPLACED btn_status WITH btn_academic_support
+            [KeyboardButton(get_text('btn_users', lang)), KeyboardButton(get_text('btn_academic_support', lang))],
             [KeyboardButton(get_text('btn_language', lang)), KeyboardButton(get_text('btn_help', lang))]
         ]
     elif is_teacher:
@@ -30,13 +32,17 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
         ]
         
     elif is_support:
-        keyboard = []
+        # 🟢 TELEGRAM FIX: You cannot send an empty array []. 
+        # To make it truly blank, we use ReplyKeyboardRemove.
+        return ReplyKeyboardRemove()
 
     else:
         # Student menu
         keyboard = [
             [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
             [KeyboardButton(get_text('btn_change_lesson', lang)), KeyboardButton(get_text('btn_pay', lang))],
+            # 🟢 NEW BUTTON FOR STUDENT
+            [KeyboardButton(get_text('btn_book_support', lang))],
             [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_language', lang))],
             [KeyboardButton(get_text('btn_help', lang))]
         ]
@@ -60,7 +66,9 @@ def get_menu_buttons(lang: str = 'en') -> list:
         get_text('btn_new_student', lang),
         get_text('btn_new_teacher', lang),
         get_text('btn_users', lang),
-        get_text('btn_language', lang)
+        get_text('btn_language', lang),
+        get_text('btn_academic_support', lang),  # 🟢 ADDED TO WHITELIST
+        get_text('btn_book_support', lang)       # 🟢 ADDED TO WHITELIST
     ]
 
 
@@ -72,23 +80,24 @@ def get_all_menu_buttons() -> list:
     return list(set(all_buttons))  # Remove duplicates
 
 
-# Legacy - keep for backward compatibility
 # Legacy - keep for backward compatibility and menu_button_filter
 MENU_BUTTONS = [
     # English
     "📅 Schedule", "📅 Today", "✏️ Change Lesson", "💰 Pay",
     "📋 Status", "❓ Help", "👤 New Student", "👤 New Teacher", 
     "👥 Users", "🌐 Language", "📅 Availability", "📚 Homework",
+    "🧑‍🏫 Academic Support", "🆘 Book lesson with support", # 🟢 ADDED
     # Russian
     "📅 Расписание", "📅 Сегодня", "✏️ Изменить урок", "💰 Оплата",
     "📋 Статус", "❓ Помощь", "👤 Новый ученик", "👤 Новый учитель",
     "👥 Пользователи", "🌐 Язык", "📅 Доступность", "📚 Домашнее задание",
+    "🧑‍🏫 Академическая поддержка", "🆘 Записаться на поддержку", # 🟢 ADDED
     # Uzbek
     "📅 Jadval", "📅 Bugun", "✏️ Darsni o'zgartirish", "💰 To'lov",
     "📋 Holat", "❓ Yordam", "👤 Yangi o'quvchi", "👤 Yangi o'qituvchi",
-    "👥 Foydalanuvchilar", "🌐 Til", "📅 Bo'sh vaqt", "📚 Uy vazifasi"
+    "👥 Foydalanuvchilar", "🌐 Til", "📅 Bo'sh vaqt", "📚 Uy vazifasi",
+    "🧑‍🏫 Akademik yordam", "🆘 Yordam darsiga yozilish" # 🟢 ADDED
 ]
-
 
 # ═══════════════════════════════════════════════════════════
 # ROLE & GROUP SELECTION

@@ -93,7 +93,13 @@ async def lesson_selected(update: Update, context: ContextTypes.DEFAULT_TYPE):
         meeting = next((m for m in all_meetings if m['id'] == meeting_id), None)
 
     if not meeting:
-        await query.edit_message_text("❌ Error: Lesson configuration not found.")
+        # Instead of a scary error, explain what happened gracefully.
+        error_text = (
+            "⏳ <b>Session Expired or Lesson Changed</b>\n\n"
+            "This menu is too old or the schedule was recently updated by the admin.\n\n"
+            "Please type /change (or click the menu button) to get a fresh list of your lessons!"
+        )
+        await query.edit_message_text(error_text, parse_mode='HTML')
         return ConversationHandler.END
 
     # Save to context for the next steps

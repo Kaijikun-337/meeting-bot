@@ -57,3 +57,47 @@ def get_available_support_staff():
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
+
+def can_book_support(student_chat_id: str) -> bool:
+    """Checks if the student has booked less than 2 support lessons this week."""
+    # Get current year and ISO week number
+    now = datetime.datetime.now()
+    year, week_number, _ = now.isocalendar()
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Count bookings for THIS student, THIS week, THIS year
+    cursor.execute("""
+        SELECT COUNT(*) as count 
+        FROM support_bookings 
+        WHERE student_chat_id = ? AND week_number = ? AND year = ?
+    """, (str(student_chat_id), week_number, year))
+    
+    row = cursor.fetchone()
+    conn.close()
+    
+    # If they have less than 2, they can book!
+    booking_count = row['count'] if row else 0
+    return booking_count < 2
+
+def record_support_booking(student_chat_id: str) -> bool:
+    """Saves a new support booking to the database."""
+    now = datetime.datetime.now()
+    year, week_number, _ = now.isocalendar()
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO support_bookings (student_chat_id, week_number, year, status)
+            VALUES (?, ?, ?, 'pending')
+        """, (str(student_chat_id), week_number, year))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error booking support: {e}")
+        return False
+    finally:
+        conn.close()

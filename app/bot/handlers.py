@@ -337,6 +337,33 @@ def register_handlers(app: Application):
         fallbacks=[CommandHandler('cancel', cancel_admin)]
     )
     
+    from app.bot.support import (
+        start_support_booking, 
+        support_date_selected, 
+        support_time_selected, 
+        cancel_support,
+        SELECT_DATE, 
+        SELECT_TIME
+    )
+    # Add this with your other ConversationHandlers
+    support_conv_handler = ConversationHandler(
+        entry_points=[
+            # This triggers when they click the keyboard button
+            MessageHandler(filters.Regex('^(🆘 Book lesson with support|🆘 Записаться на поддержку|🆘 Yordam darsiga yozilish)$'), start_support_booking)
+        ],
+        states={
+            SELECT_DATE: [
+                CallbackQueryHandler(support_date_selected, pattern="^sup_date_"),
+                CallbackQueryHandler(support_date_selected, pattern="^sup_cancel$")
+            ],
+            SELECT_TIME: [
+                CallbackQueryHandler(support_time_selected, pattern="^sup_time_"),
+                CallbackQueryHandler(support_time_selected, pattern="^sup_back$")
+            ]
+        },
+        fallbacks=[CommandHandler('cancel', cancel_support)] # Assuming you have a cancel function
+    )
+    
     # ═══════════════════════════════════════════════════════════
     # REGISTER HANDLERS (order matters!)
     # ═══════════════════════════════════════════════════════════
@@ -353,6 +380,7 @@ def register_handlers(app: Application):
     app.add_handler(edit_teacher_handler)
     app.add_handler(delete_user_handler)
     app.add_handler(new_support_handler)
+    app.add_handler(support_conv_handler)
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))

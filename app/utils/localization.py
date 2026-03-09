@@ -957,6 +957,29 @@ TRANSLATIONS = {
         'ru': "🔄 <b>(Перенесено)</b> ",
         'uz': "🔄 <b>(Ko‘chirildi)</b> "
     },
+        
+    'btn_academic_support': {
+        'en': '🧑‍🏫 Academic Support',
+        'ru': '🧑‍🏫 Академическая поддержка',
+        'uz': '🧑‍🏫 Akademik yordam'
+    },
+    
+    'btn_book_support': {
+        'en': '🆘 Book lesson with support',
+        'ru': '🆘 Записаться на поддержку',
+        'uz': '🆘 Yordam darsiga yozilish'
+    },
+    
+    'support_limit_reached': {
+        'en': '⚠️ <b>Limit Reached</b>\n\nYou can only book Academic Support <b>2 times per week</b>. Please try again next Monday.',
+        'ru': '⚠️ <b>Лимит исчерпан</b>\n\nВы можете записываться на поддержку только <b>2 раза в неделю</b>. Попробуйте снова в следующий понедельник.',
+        'uz': '⚠️ <b>Limit tugadi</b>\n\nSiz haftasiga faqat <b>2 marta</b> yordam darsiga yozilishingiz mumkin. Kelasi dushanba kuni qayta urinib ko\'ring.'
+    },
+    'support_booking_success': {
+        'en': '✅ <b>Support Booked!</b>\n\nYour request has been sent to our Academic Support team. They will contact you shortly to arrange the time.',
+        'ru': '✅ <b>Поддержка забронирована!</b>\n\nВаш запрос отправлен команде поддержки. Они свяжутся с вами в ближайшее время.',
+        'uz': '✅ <b>Yordam darsi band qilindi!</b>\n\nSizning so\'rovingiz yordam guruhiga yuborildi. Ular tez orada siz bilan bog\'lanishadi.'
+    },
 }
 
 def get_text(key: str, lang: str = 'en') -> str:

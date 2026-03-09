@@ -1,6 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from app.config import Config
+from app.bot.support import handle_book_support
 from app.utils.localization import get_text
 
 
@@ -86,6 +87,9 @@ async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     elif is_button(text, 'btn_language'):
         return await language_command(update, context)
+    
+    elif text in [get_text('btn_book_support', 'en'), get_text('btn_book_support', 'ru'), get_text('btn_book_support', 'uz')]:
+        await handle_book_support(update, context)
     
     return None
 

@@ -255,6 +255,26 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
+        # Add this inside your create_tables() function in db.py
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS support_bookings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_chat_id TEXT NOT NULL,
+            support_chat_id TEXT NOT NULL,
+            booking_date TEXT NOT NULL,
+            booking_time TEXT NOT NULL,
+            meet_link TEXT,
+            status TEXT DEFAULT 'scheduled',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    # Let's also add an index to make the "2 per week" check super fast
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_support_student 
+        ON support_bookings(student_chat_id)
+    """)
 
     # --- AUTO-FIX FOR LOCAL SQLITE ---
     # Attempt to add columns that might be missing in your local file
