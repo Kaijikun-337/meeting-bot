@@ -5,6 +5,8 @@ from app.services.support_service import get_weekly_booking_count, create_bookin
 from app.services.lesson_service import get_available_slots_for_rescheduling
 from app.utils.localization import get_text, get_user_language
 from app.jitsi_meet import create_jitsi_meeting
+from app.services.support_service import can_book_support, record_support_booking
+from app.utils.localization import t
 
 SELECT_DATE, SELECT_TIME = range(2)
 
@@ -161,3 +163,30 @@ async def cancel_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(get_text('cancelled', lang))
         
     return ConversationHandler.END
+
+async def handle_book_support(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handler for when a student clicks 'Book lesson with support'."""
+    chat_id = str(update.effective_chat.id)
+    
+    # 1. Check the rule: Max 2 per week
+    if not can_book_support(chat_id):
+        # ❌ They reached the limit
+        await update.message.reply_text(
+            t(chat_id, 'support_limit_reached') 
+        )
+        return
+    
+    # 2. Record the booking
+    success = record_support_booking(chat_id)
+    
+    if success:
+        # ✅ Success!
+        # TODO: Send a message to the Support Staff/Admin group here if needed.
+        await update.message.reply_text(
+            t(chat_id, 'support_booking_success')
+        )
+    else:
+        # DB Error
+        await update.message.reply_text(
+            t(chat_id, 'error_occurred')
+        )
