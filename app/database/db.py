@@ -259,7 +259,7 @@ def init_database():
         # Add this inside your create_tables() function in db.py
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS support_bookings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk_type},
             student_chat_id TEXT NOT NULL,
             support_chat_id TEXT NOT NULL,
             booking_date TEXT NOT NULL,
