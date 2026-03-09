@@ -21,7 +21,7 @@ class Config:
     PRICE_LIST_FILE = "price_list.json"
     
     # Google Sheets
-    SHEETS_CREDENTIALS_FILE = "sheets_credentials.json"
+    SHEETS_CREDENTIALS_FILE = "credentials.json"
     GOOGLE_SHEETS_ID = os.getenv("GOOGLE_SHEETS_ID")
     
     # Rules
@@ -29,9 +29,9 @@ class Config:
     
     # Teacher Colors
     TEACHER_COLORS = {
-        "Mr. Smith": {"red": 0.85, "green": 0.92, "blue": 0.98},
-        "Ms. Johnson": {"red": 0.98, "green": 0.85, "blue": 0.85},
-        "Mr. Brown": {"red": 0.85, "green": 0.98, "blue": 0.85},
+        "Timur": {"red": 0.85, "green": 0.92, "blue": 0.98},
+        "Amir": {"red": 0.98, "green": 0.85, "blue": 0.85},
+        "Sardor": {"red": 0.85, "green": 0.98, "blue": 0.85},
         "Ms. Davis": {"red": 0.98, "green": 0.95, "blue": 0.85},
         "Mr. Wilson": {"red": 0.95, "green": 0.85, "blue": 0.98},
         "Default": {"red": 0.95, "green": 0.95, "blue": 0.95}

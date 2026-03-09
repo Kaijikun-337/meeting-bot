@@ -4,6 +4,8 @@ from app.services.user_service import get_students_in_group, get_teacher_for_gro
 from app.services.attendance_service import mark_attendance, get_lesson_attendance
 from app.config import Config
 from app.utils.localization import get_text, get_user_language
+from app.services.sheets_service import export_attendance_to_sheet
+from app.services.user_service import get_user
 
 # Callback data: attend_MEETINGID_DATE
 # We also need a state to store temp selections
@@ -142,6 +144,39 @@ async def submit_attendance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Summary String
     present_count = len(present_ids)
     absent_count = len(absent_ids)
+    
+    teacher_id = str(update.effective_chat.id)
+    teacher = get_user(teacher_id)
+    teacher_name = teacher['name'] if teacher else "Unknown Teacher"
+    
+    sheet_data = []
+    
+    # Process Present
+    for sid in present_ids:
+        # Find student name from the meta list we saved earlier
+        s_obj = next((s for s in meta['students'] if str(s['chat_id']) == sid), None)
+        name = s_obj['name'] if s_obj else "Unknown"
+        sheet_data.append({
+            'date': meta['date'],
+            'group': meta['group'],
+            'student_name': name,
+            'status': 'Present'
+        })
+        
+    # Process Absent
+    for sid in absent_ids:
+        s_obj = next((s for s in meta['students'] if str(s['chat_id']) == sid), None)
+        name = s_obj['name'] if s_obj else "Unknown"
+        sheet_data.append({
+            'date': meta['date'],
+            'group': meta['group'],
+            'student_name': name,
+            'status': 'Absent'
+        })
+    
+    # 2. Send to Google Sheets
+    if sheet_data:
+        success = export_attendance_to_sheet(teacher_name, sheet_data)
     
     await query.edit_message_text(
         f"✅ <b>Attendance Saved!</b>\n\n"

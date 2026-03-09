@@ -28,7 +28,7 @@ from app.bot.admin import (
     delete_user_command, delete_user_chat_entered, delete_user_confirm,
     edit_student_command, edit_user_chat_entered, edit_student_name, edit_student_group,
     edit_teacher_command, edit_teacher_chat_entered, edit_teacher_name_step,
-    edit_teacher_group_step, edit_teacher_subject_step,
+    edit_teacher_group_step, edit_teacher_subject_step, new_support_command,
     ENTERING_NAME, ENTERING_GROUP as ADMIN_ENTERING_GROUP,
     EDIT_USER_CHAT, EDIT_STUDENT_NAME, EDIT_STUDENT_GROUP,
     EDIT_TEACHER_NAME, EDIT_TEACHER_GROUP, EDIT_TEACHER_SUBJECT,
@@ -328,6 +328,15 @@ def register_handlers(app: Application):
             per_message=False
         )
     
+        # Admin: New Support
+    new_support_handler = ConversationHandler(
+        entry_points=[CommandHandler('new_support', new_support_command)],
+        states={
+            ENTERING_NAME: [MessageHandler(filters.TEXT, name_entered_admin)]   
+        },
+        fallbacks=[CommandHandler('cancel', cancel_admin)]
+    )
+    
     # ═══════════════════════════════════════════════════════════
     # REGISTER HANDLERS (order matters!)
     # ═══════════════════════════════════════════════════════════
@@ -343,6 +352,7 @@ def register_handlers(app: Application):
     app.add_handler(edit_student_handler)
     app.add_handler(edit_teacher_handler)
     app.add_handler(delete_user_handler)
+    app.add_handler(new_support_handler)
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))

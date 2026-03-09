@@ -2,7 +2,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ChatAction
 from app.services.user_service import get_user, get_students_in_group # Added get_students_in_group
-from app.services.sheets_service import add_payment, get_student_payment_summary
 from app.services.payment_cache import (
     get_cached_total_paid, 
     add_payment_to_cache,

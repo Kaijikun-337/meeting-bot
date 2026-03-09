@@ -9,7 +9,12 @@ from app.database.db import get_connection
 
 def generate_registration_key(role: str) -> str:
     """Generate unique registration key."""
-    prefix = "TCH" if role == "teacher" else "STU"
+    if role == "teacher":
+        prefix = "TCH"
+    elif role == "support":
+        prefix = "SUP"
+    else:
+        prefix = "STU"
     chars = string.ascii_uppercase + string.digits
     random_part = ''.join(random.choices(chars, k=6))
     return f"{prefix}-{random_part}"

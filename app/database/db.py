@@ -84,8 +84,10 @@ def get_connection():
     else:
         # --- SQLITE (Local) ---
         # Calculate path relative to this file
+        db_name = os.getenv("DB_PATH", "data.db") 
+        
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        db_path = os.path.join(base_dir, 'data.db')
+        db_path = os.path.join(base_dir, db_name)
         
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
@@ -237,6 +239,20 @@ def init_database():
             marked_by TEXT,        -- Who marked this? (Teacher ID)
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(meeting_id, date, student_chat_id)
+        )
+    """)
+    
+        # 10. Support Bookings
+    # Tracks Academic Support sessions
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS support_bookings (
+            id {pk_type},
+            student_chat_id TEXT NOT NULL,
+            support_chat_id TEXT NOT NULL,
+            booking_date TEXT NOT NULL,  -- DD-MM-YYYY
+            booking_time TEXT NOT NULL,  -- HH:MM
+            status TEXT DEFAULT 'scheduled', -- scheduled, completed, cancelled
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 

@@ -1,355 +1,155 @@
 import gspread
-from google.oauth2.service_account import Credentials
-from datetime import datetime
+from oauth2client.service_account import ServiceAccountCredentials
 from app.config import Config
+from datetime import datetime
+import logging
 
-SCOPES = [
-    'https://www.googleapis.com/auth/spreadsheets',
-    'https://www.googleapis.com/auth/drive'
+logger = logging.getLogger(__name__)
+
+SCOPE = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file",
+    "https://www.googleapis.com/auth/drive"
 ]
 
-
-def get_sheets_client():
-    """Get authenticated Google Sheets client."""
-    creds = Credentials.from_service_account_file(
-        Config.SHEETS_CREDENTIALS_FILE,
-        scopes=SCOPES
-    )
-    return gspread.authorize(creds)
-
-
-def get_spreadsheet():
-    """Get the payments spreadsheet."""
-    client = get_sheets_client()
-    return client.open_by_key(Config.GOOGLE_SHEETS_ID)
-
-
-def setup_payments_sheet():
-    """Create and format the payments sheet."""
-    spreadsheet = get_spreadsheet()
-    
+def get_client():
+    """Authenticate and return the gspread client."""
     try:
-        sheet = spreadsheet.worksheet("Payments")
-        # Clear existing data
-        sheet.clear()
-    except gspread.exceptions.WorksheetNotFound:
-        sheet = spreadsheet.add_worksheet(title="Payments", rows=1000, cols=12)
-    
-    # New headers
-    headers = [
-        "Date", 
-        "Student", 
-        "Subject", 
-        "Teacher", 
-        "Group", 
-        "Course Price",  # Total price for course
-        "This Payment",  # Current payment
-        "Total Paid",    # Running sum
-        "Remaining",     # Course Price - Total Paid
-        "Status", 
-        "Completed"      # Yes/No if fully paid
-    ]
-    sheet.update('A1:K1', [headers])
-    
-    # Format headers
-    sheet.format('A1:K1', {
-        "backgroundColor": {"red": 0.2, "green": 0.4, "blue": 0.6},
-        "textFormat": {
-            "bold": True,
-            "fontSize": 11,
-            "foregroundColor": {"red": 1, "green": 1, "blue": 1}
-        },
-        "horizontalAlignment": "CENTER",
-        "verticalAlignment": "MIDDLE"
-    })
-    
-    # Set column widths
-    set_column_widths(spreadsheet, sheet)
-    
-    # Freeze header row
-    sheet.freeze(rows=1)
-    
-    print("✅ Payments sheet set up!")
-    return sheet
+        creds = ServiceAccountCredentials.from_json_keyfile_name(Config.SHEETS_CREDENTIALS_FILE, SCOPE)
+        client = gspread.authorize(creds)
+        return client
+    except Exception as e:
+        logger.error(f"❌ Google Sheets Auth Failed: {e}")
+        return None
 
+def export_attendance_to_sheet(teacher_name, attendance_data):
+    """
+    Writes attendance list to a specific Monthly Tab for the teacher.
+    Tab Name: "Teacher Name - MMM YYYY" (e.g. "Sardor - Feb 2026")
+    """
+    client = get_client()
+    if not client: return False
 
-def set_column_widths(spreadsheet, sheet):
-    """Set proper column widths."""
-    requests = [
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 0, "endIndex": 1},
-            "properties": {"pixelSize": 100}, "fields": "pixelSize"
-        }},  # Date
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 1, "endIndex": 2},
-            "properties": {"pixelSize": 140}, "fields": "pixelSize"
-        }},  # Student
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 2, "endIndex": 3},
-            "properties": {"pixelSize": 100}, "fields": "pixelSize"
-        }},  # Subject
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 3, "endIndex": 4},
-            "properties": {"pixelSize": 120}, "fields": "pixelSize"
-        }},  # Teacher
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 4, "endIndex": 5},
-            "properties": {"pixelSize": 90}, "fields": "pixelSize"
-        }},  # Group
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 5, "endIndex": 6},
-            "properties": {"pixelSize": 100}, "fields": "pixelSize"
-        }},  # Course Price
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 6, "endIndex": 7},
-            "properties": {"pixelSize": 100}, "fields": "pixelSize"
-        }},  # This Payment
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 7, "endIndex": 8},
-            "properties": {"pixelSize": 90}, "fields": "pixelSize"
-        }},  # Total Paid
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 8, "endIndex": 9},
-            "properties": {"pixelSize": 90}, "fields": "pixelSize"
-        }},  # Remaining
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 9, "endIndex": 10},
-            "properties": {"pixelSize": 100}, "fields": "pixelSize"
-        }},  # Status
-        {"updateDimensionProperties": {
-            "range": {"sheetId": sheet.id, "dimension": "COLUMNS", "startIndex": 10, "endIndex": 11},
-            "properties": {"pixelSize": 90}, "fields": "pixelSize"
-        }},  # Completed
-    ]
-    
-    spreadsheet.batch_update({"requests": requests})
-
-
-def get_teacher_color(teacher_name: str) -> dict:
-    """Get color for teacher."""
-    return Config.TEACHER_COLORS.get(teacher_name, Config.TEACHER_COLORS["Default"])
-
-
-def get_total_paid(student_name: str, subject: str, teacher_name: str) -> float:
-    """Get total amount already paid by student for specific course."""
-    spreadsheet = get_spreadsheet()
-    
     try:
-        sheet = spreadsheet.worksheet("Payments")
-    except gspread.exceptions.WorksheetNotFound:
-        return 0.0
-    
-    records = sheet.get_all_records()
-    
-    total = 0.0
-    for record in records:
-        if (record.get('Student', '').lower() == student_name.lower() and
-            record.get('Subject', '').lower() == subject.lower() and
-            record.get('Teacher', '').lower() == teacher_name.lower() and
-            record.get('Status') == '✅ Confirmed'):
+        sheet = client.open_by_key(Config.GOOGLE_SHEETS_ID)
+        
+        # Determine Tab Name based on the date of the first record
+        # (Assuming batch is same month, or we default to Today)
+        if attendance_data:
+            first_date = attendance_data[0]['date']
             try:
-                payment = str(record.get('This Payment', 0)).replace('$', '').replace(',', '')
-                total += float(payment)
-            except ValueError:
-                pass
-    
-    return total
+                dt = datetime.strptime(first_date, "%d-%m-%Y")
+                month_str = dt.strftime("%b %Y")
+            except:
+                month_str = datetime.now().strftime("%b %Y")
+        else:
+            return False
 
+        tab_name = f"{teacher_name} - {month_str}"
+        
+        # Get/Create Worksheet
+        try:
+            worksheet = sheet.worksheet(tab_name)
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = sheet.add_worksheet(title=tab_name, rows=100, cols=5)
+            worksheet.append_row(["Date", "Group", "Student Name", "Status"])
+            worksheet.format('A1:D1', {'textFormat': {'bold': True}})
 
-def add_payment(
-    student_name: str,
-    subject: str,
-    teacher_name: str,
-    group: str,
-    payment_amount: float,
-    status: str = "✅ Confirmed"
-) -> bool:
-    """Add a payment record to the sheet."""
-    spreadsheet = get_spreadsheet()
-    
-    try:
-        sheet = spreadsheet.worksheet("Payments")
-    except gspread.exceptions.WorksheetNotFound:
-        sheet = setup_payments_sheet()
-    
-    # Get course price from price list
-    course_price = Config.get_course_price(subject, teacher_name, group)
-    
-    # Get current total paid
-    current_paid = get_total_paid(student_name, subject, teacher_name)
-    new_total = current_paid + payment_amount
-    
-    # Calculate remaining
-    remaining = max(0, course_price - new_total)
-    
-    # Check if completed
-    completed = "✅ Yes" if new_total >= course_price else "❌ No"
-    
-    # Prepare row data
-    date_str = datetime.now().strftime("%d-%m-%Y")
-    row = [
-        date_str,
-        student_name,
-        subject,
-        teacher_name,
-        group,
-        f"${course_price:.2f}",
-        f"${payment_amount:.2f}",
-        f"${new_total:.2f}",
-        f"${remaining:.2f}",
-        status,
-        completed
-    ]
-    
-    # Add row
-    sheet.append_row(row, value_input_option='USER_ENTERED')
-    
-    # Get row number (last row)
-    row_num = len(sheet.get_all_values())
-    
-    # Format the new row
-    format_payment_row(spreadsheet, sheet, row_num, teacher_name, status, completed)
-    
-    return True
+        # Prepare Rows
+        rows_to_add = []
+        for record in attendance_data:
+            rows_to_add.append([
+                record['date'],
+                record.get('group', ''),
+                record['student_name'],
+                record['status']
+            ])
 
+        if rows_to_add:
+            worksheet.append_rows(rows_to_add)
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to write to Sheet: {e}")
+        return False
+    return False
 
-def format_payment_row(spreadsheet, sheet, row_num: int, teacher_name: str, status: str, completed: str):
-    """Format a payment row with colors."""
+def sync_all_attendance_to_sheets():
+    """
+    One-time script to push ALL DB attendance to Sheets.
+    Groups by Teacher and Month automatically.
+    """
+    from app.database.db import get_connection
+    from app.services.user_service import get_user, get_teacher_for_group
+    from app.config import Config
     
-    # Teacher color for student name cell
-    teacher_color = get_teacher_color(teacher_name)
+    print("⏳ Syncing All Attendance...")
+    conn = get_connection()
+    cursor = conn.cursor()
     
-    # Status color
-    if status == "✅ Confirmed":
-        status_color = {"red": 0.85, "green": 0.95, "blue": 0.85}
-    elif status == "❌ Rejected":
-        status_color = {"red": 0.95, "green": 0.85, "blue": 0.85}
-    else:
-        status_color = {"red": 0.98, "green": 0.95, "blue": 0.85}
+    # 1. Fetch All Logs with Student Info
+    cursor.execute("""
+        SELECT a.date, a.status, a.student_chat_id, u.name as student_name, u.group_name 
+        FROM attendance_log a
+        JOIN users u ON a.student_chat_id = u.chat_id
+    """)
+    logs = [dict(row) for row in cursor.fetchall()]
+    conn.close()
     
-    # Completed color
-    if "Yes" in completed:
-        completed_color = {"red": 0.7, "green": 0.95, "blue": 0.7}  # Green
-    else:
-        completed_color = {"red": 0.98, "green": 0.9, "blue": 0.8}  # Light orange
-    
-    requests = [
-        # Student name cell - teacher color
-        {
-            "repeatCell": {
-                "range": {
-                    "sheetId": sheet.id,
-                    "startRowIndex": row_num - 1,
-                    "endRowIndex": row_num,
-                    "startColumnIndex": 1,
-                    "endColumnIndex": 2
-                },
-                "cell": {
-                    "userEnteredFormat": {
-                        "backgroundColor": teacher_color,
-                        "textFormat": {"bold": True}
-                    }
-                },
-                "fields": "userEnteredFormat(backgroundColor,textFormat)"
-            }
-        },
-        # Status cell
-        {
-            "repeatCell": {
-                "range": {
-                    "sheetId": sheet.id,
-                    "startRowIndex": row_num - 1,
-                    "endRowIndex": row_num,
-                    "startColumnIndex": 9,
-                    "endColumnIndex": 10
-                },
-                "cell": {
-                    "userEnteredFormat": {
-                        "backgroundColor": status_color,
-                        "horizontalAlignment": "CENTER"
-                    }
-                },
-                "fields": "userEnteredFormat(backgroundColor,horizontalAlignment)"
-            }
-        },
-        # Completed cell
-        {
-            "repeatCell": {
-                "range": {
-                    "sheetId": sheet.id,
-                    "startRowIndex": row_num - 1,
-                    "endRowIndex": row_num,
-                    "startColumnIndex": 10,
-                    "endColumnIndex": 11
-                },
-                "cell": {
-                    "userEnteredFormat": {
-                        "backgroundColor": completed_color,
-                        "horizontalAlignment": "CENTER",
-                        "textFormat": {"bold": True}
-                    }
-                },
-                "fields": "userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)"
-            }
-        },
-        # All cells - border and alignment
-        {
-            "repeatCell": {
-                "range": {
-                    "sheetId": sheet.id,
-                    "startRowIndex": row_num - 1,
-                    "endRowIndex": row_num,
-                    "startColumnIndex": 0,
-                    "endColumnIndex": 11
-                },
-                "cell": {
-                    "userEnteredFormat": {
-                        "verticalAlignment": "MIDDLE",
-                        "borders": {
-                            "top": {"style": "SOLID", "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
-                            "bottom": {"style": "SOLID", "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
-                            "left": {"style": "SOLID", "color": {"red": 0.8, "green": 0.8, "blue": 0.8}},
-                            "right": {"style": "SOLID", "color": {"red": 0.8, "green": 0.8, "blue": 0.8}}
-                        }
-                    }
-                },
-                "fields": "userEnteredFormat(verticalAlignment,borders)"
-            }
-        }
-    ]
-    
-    spreadsheet.batch_update({"requests": requests})
+    if not logs:
+        print("   No attendance logs found.")
+        return
 
-
-def get_student_payment_summary(student_name: str, subject: str, teacher_name: str) -> dict:
-    """Get payment summary for a student's course."""
-    course_price = Config.get_course_price(subject, teacher_name, "")
-    total_paid = get_total_paid(student_name, subject, teacher_name)
-    remaining = max(0, course_price - total_paid)
-    completed = total_paid >= course_price
+    # 2. Group by Teacher (We need to find who taught this group)
+    # Map: Teacher -> List of Records
+    teacher_batches = {}
     
-    return {
-        "course_price": course_price,
-        "total_paid": total_paid,
-        "remaining": remaining,
-        "completed": completed
-    }
-
-
-def get_student_payments(student_name: str) -> list:
-    """Get all payments for a student."""
-    spreadsheet = get_spreadsheet()
+    # Cache teacher lookups to speed up
+    # GroupName -> TeacherName
+    teacher_cache = {}
     
-    try:
-        sheet = spreadsheet.worksheet("Payments")
-    except gspread.exceptions.WorksheetNotFound:
-        return []
+    # Pre-load all meetings to map Group -> Teacher? 
+    # Or rely on DB `teacher_groups`?
+    # Let's rely on DB helper `get_teacher_for_group`
     
-    records = sheet.get_all_records()
-    
-    payments = []
-    for record in records:
-        if record.get('Student', '').lower() == student_name.lower():
-            payments.append(record)
-    
-    return payments
+    for log in logs:
+        group = log['group_name']
+        if not group: continue # Skip ungrouped students
+        
+        # Find Teacher
+        if group in teacher_cache:
+            t_name = teacher_cache[group]
+        else:
+            t_obj = get_teacher_for_group(group)
+            t_name = t_obj['name'] if t_obj else "Unknown Teacher"
+            teacher_cache[group] = t_name
+            
+        if t_name not in teacher_batches:
+            teacher_batches[t_name] = []
+            
+        teacher_batches[t_name].append({
+            'date': log['date'],
+            'group': group,
+            'student_name': log['student_name'],
+            'status': log['status']
+        })
+        
+    # 3. Export
+    for teacher, records in teacher_batches.items():
+        print(f"   Exporting {len(records)} rows for {teacher}...")
+        # Note: This simple export might mix months if we have history.
+        # But `export_attendance_to_sheet` creates tab based on FIRST record's date.
+        # Ideally we split by month here too.
+        
+        # Split by month
+        by_month = {}
+        for r in records:
+            m_key = r['date'][3:] # "02-2026"
+            if m_key not in by_month: by_month[m_key] = []
+            by_month[m_key].append(r)
+            
+        for month_records in by_month.values():
+            export_attendance_to_sheet(teacher, month_records)
+            
+    print("✅ Sync Complete!")

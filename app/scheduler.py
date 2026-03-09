@@ -228,6 +228,30 @@ async def job_keep_db_alive():
     except Exception as e:
         logger.error(f"❌ DB Heartbeat failed: {e}")
         
+async def schedule_support_link(app, student_id, support_id, date_str, time_str):
+    """Schedule a one-off support meeting."""
+    
+    # Convert string to datetime
+    tz = pytz.timezone(Config.TIMEZONE)
+    # Parse logic... (Assume valid DD-MM-YYYY HH:MM)
+    dt_str = f"{date_str} {time_str}"
+    run_time = datetime.strptime(dt_str, "%d-%m-%Y %H:%M")
+    run_time = tz.localize(run_time)
+    
+    # Config object for the job
+    config = {
+        'title': "Academic Support",
+        'group_name': "Support Session",
+        # We cheat and put both IDs in recipients logic
+        'chat_id': student_id, 
+        'teacher_chat_id': support_id 
+    }
+    
+    # Add Job
+    # We access the scheduler from app.job_queue? No, we need the global scheduler instance.
+    # Hack: Import the global scheduler if defined, or pass it.
+    # Ideally, store scheduler in app.bot_data
+        
 # Helper to freeze data
 def create_job_args(app, meeting):
     return [app, dict(meeting)]

@@ -164,7 +164,7 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = "👥 <b>Registered Users</b>\n\n"
     
     for u in users:
-        icon = "👨‍🏫" if u['role'] == 'teacher' else "👨‍🎓"
+        icon = "👨‍🏫" if u['role'] == 'teacher' else "🛠" if u['role'] == 'support' else "👨‍🎓"
         group = f" ({u['group_name']})" if u['group_name'] else ""
         text += f"{icon} <b>{u['name']}</b>{group}\n"
         text += f"🆔 <code>{u['chat_id']}</code>\n\n"
@@ -503,3 +503,37 @@ async def show_student_stats(update: Update, student_id: str):
         msg += f"{icon} {record['date']} ({record['meeting_id']})\n"
         
     await update.message.reply_text(msg, parse_mode='HTML')
+    
+async def new_support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle /new_support command (admin only)."""
+    chat_id = str(update.effective_chat.id)
+    
+    if not is_admin(chat_id):
+        return ConversationHandler.END
+    
+    context.user_data['new_user'] = {'role': 'support'}
+    
+    await update.message.reply_text(
+        "🛠 <b>New Academic Support Registration</b>\n\n"
+        "Enter the staff member's <b>full name</b>:",
+        parse_mode='HTML'
+    )
+    
+    return ENTERING_NAME
+
+async def name_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    name = update.message.text.strip()
+    role = context.user_data['new_user']['role']
+    
+    if role == 'support':
+        # Create immediately (no groups needed)
+        key = create_pending_user(name, 'support')
+        
+        await update.message.reply_text(
+            f"✅ <b>Support Staff Created!</b>\n\n"
+            f"👤 Name: {name}\n"
+            f"🔑 Key: <code>{key}</code>\n\n"
+            f"Share this key. They use /start to activate.",
+            parse_mode='HTML'
+        )
+        return ConversationHandler.END

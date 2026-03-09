@@ -11,7 +11,7 @@ from app.utils.localization import get_text, get_user_language
 # MAIN MENU (Reply Keyboard)
 # ═══════════════════════════════════════════════════════════
 
-def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: str = 'en'):
+def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: str = 'en', is_support: bool = False):
     """Persistent main menu keyboard - localized."""
     
     if is_admin:
@@ -28,6 +28,10 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
             [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_availability', lang))],
             [KeyboardButton(get_text('btn_language', lang)), KeyboardButton(get_text('btn_help', lang))]
         ]
+        
+    elif is_support:
+        keyboard = []
+
     else:
         # Student menu
         keyboard = [

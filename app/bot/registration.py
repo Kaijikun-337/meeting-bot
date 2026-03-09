@@ -71,11 +71,8 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     
     # Validate key format
-    if not (key.startswith("STU-") or key.startswith("TCH-")):
-        await update.message.reply_text(
-            get_text('invalid_key_format', lang),
-            parse_mode='HTML'
-        )
+    if not (key.startswith("STU-") or key.startswith("TCH-") or key.startswith("SUP-")):
+        await update.message.reply_text("Invalid format.")
         return ENTERING_KEY
     
     # Try to activate
@@ -116,7 +113,7 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group = result.get('group_name', '')
     
     role_text = get_text('role_teacher', lang) if role == 'teacher' else get_text('role_student', lang)
-    role_icon = "👨‍🏫" if role == "teacher" else "👨‍🎓"
+    role_icon = "🛠" if role == "support" else ("👨‍🏫" if role == "teacher" else "👨‍🎓")
     
     group_text = f"\n{get_text('status_group', lang)}: {group}" if group else ""
     
