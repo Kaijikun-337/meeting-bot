@@ -257,7 +257,7 @@ def init_database():
     """)
     
         # Add this inside your create_tables() function in db.py
-    cursor.execute("""
+    cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS support_bookings (
             id {pk_type},
             student_chat_id TEXT NOT NULL,
