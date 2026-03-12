@@ -4,7 +4,8 @@ import json
 import os
 from typing import Optional
 from datetime import datetime
-from app.database.db import get_connection
+from app.database.db import get_connection, get_p
+import psycopg2
 
 
 def generate_registration_key(role: str) -> str:
@@ -28,14 +29,14 @@ def create_pending_user(name: str, role: str, group_name: str = None) -> str:
     # Generate unique key
     while True:
         key = generate_registration_key(role)
-        cursor.execute('SELECT 1 FROM users WHERE registration_key = ?', (key,))
+        cursor.execute('SELECT 1 FROM users WHERE registration_key = %s', (key,))
         if not cursor.fetchone():
             break
     
     try:
         cursor.execute('''
             INSERT INTO users (name, role, group_name, registration_key, is_active)
-            VALUES (?, ?, ?, ?, 0)
+            VALUES (%s, %s, %s, %s, 0)
         ''', (name, role, group_name, key))
         conn.commit()
         return key
@@ -55,21 +56,21 @@ def add_pending_teacher_group(registration_key: str, group_name: str, subject: s
         # 1. Check if exists
         cursor.execute('''
             SELECT 1 FROM pending_teacher_groups 
-            WHERE registration_key = ? AND group_name = ?
+            WHERE registration_key = %s AND group_name = %s
         ''', (registration_key, group_name))
         
         if cursor.fetchone():
             # 2. Update
             cursor.execute('''
                 UPDATE pending_teacher_groups 
-                SET subject = ? 
-                WHERE registration_key = ? AND group_name = ?
+                SET subject = %s 
+                WHERE registration_key = %s AND group_name = %s
             ''', (subject, registration_key, group_name))
         else:
             # 3. Insert
             cursor.execute('''
                 INSERT INTO pending_teacher_groups (registration_key, group_name, subject)
-                VALUES (?, ?, ?)
+                VALUES (%s, %s, %s)
             ''', (registration_key, group_name, subject))
             
         conn.commit()
@@ -114,20 +115,20 @@ def sync_teacher_groups_from_json(teacher_chat_id, teacher_name):
             # 1. Check if exists
             cursor.execute("""
                 SELECT 1 FROM teacher_groups 
-                WHERE teacher_chat_id = ? AND group_name = ?
+                WHERE teacher_chat_id = %s AND group_name = %s
             """, (str(teacher_chat_id), group))
             
             if cursor.fetchone():
                 # 2. Update subject if needed
                 cursor.execute("""
-                    UPDATE teacher_groups SET subject = ?
-                    WHERE teacher_chat_id = ? AND group_name = ?
+                    UPDATE teacher_groups SET subject = %s
+                    WHERE teacher_chat_id = %s AND group_name = %s
                 """, (subject, str(teacher_chat_id), group))
             else:
                 # 3. Insert
                 cursor.execute("""
                     INSERT INTO teacher_groups (teacher_chat_id, group_name, subject)
-                    VALUES (?, ?, ?)
+                    VALUES (%s, %s, %s)
                 """, (str(teacher_chat_id), group, subject))
                 
             print(f"✅ Auto-linked group '{group}' ({subject}) to {teacher_name}")
@@ -146,14 +147,14 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
     
     # Find pending user with this key
     cursor.execute('''
-        SELECT * FROM users WHERE registration_key = ? AND is_active = 0
+        SELECT * FROM users WHERE registration_key = %s AND is_active = 0
     ''', (registration_key,))
     
     user = cursor.fetchone()
     
     if not user:
         # Check if key used
-        cursor.execute('SELECT * FROM users WHERE registration_key = ?', (registration_key,))
+        cursor.execute('SELECT * FROM users WHERE registration_key = %s', (registration_key,))
         existing = cursor.fetchone()
         conn.close()
         
@@ -162,7 +163,7 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
         return {"error": "invalid_key"}
     
     # Check if chat_id already registered
-    cursor.execute('SELECT 1 FROM users WHERE chat_id = ? AND is_active = 1', (str(chat_id),))
+    cursor.execute('SELECT 1 FROM users WHERE chat_id = %s AND is_active = 1', (str(chat_id),))
     if cursor.fetchone():
         conn.close()
         return {"error": "already_registered"}
@@ -171,8 +172,8 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
     try:
         cursor.execute('''
             UPDATE users 
-            SET chat_id = ?, is_active = 1, activated_at = ?
-            WHERE registration_key = ?
+            SET chat_id = %s, is_active = 1, activated_at = %s
+            WHERE registration_key = %s
         ''', (str(chat_id), datetime.now().isoformat(), registration_key))
         
         user_role = user['role']
@@ -182,7 +183,7 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
         if user_role == 'teacher':
             cursor.execute('''
                 SELECT group_name, subject FROM pending_teacher_groups
-                WHERE registration_key = ?
+                WHERE registration_key = %s
             ''', (registration_key,))
             
             groups = cursor.fetchall()
@@ -191,14 +192,14 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
                 g_name = group['group_name']
                 subj = group['subject']
                 
-                cursor.execute("SELECT 1 FROM teacher_groups WHERE teacher_chat_id=? AND group_name=?", (str(chat_id), g_name))
+                cursor.execute("SELECT 1 FROM teacher_groups WHERE teacher_chat_id=%s AND group_name=%s", (str(chat_id), g_name))
                 if cursor.fetchone():
-                    cursor.execute("UPDATE teacher_groups SET subject=? WHERE teacher_chat_id=? AND group_name=?", (subj, str(chat_id), g_name))
+                    cursor.execute("UPDATE teacher_groups SET subject=%s WHERE teacher_chat_id=%s AND group_name=%s", (subj, str(chat_id), g_name))
                 else:
-                    cursor.execute("INSERT INTO teacher_groups (teacher_chat_id, group_name, subject) VALUES (?, ?, ?)", (str(chat_id), g_name, subj))
+                    cursor.execute("INSERT INTO teacher_groups (teacher_chat_id, group_name, subject) VALUES (%s, %s, %s)", (str(chat_id), g_name, subj))
             
             # Clean up pending
-            cursor.execute('DELETE FROM pending_teacher_groups WHERE registration_key = ?', (registration_key,))
+            cursor.execute('DELETE FROM pending_teacher_groups WHERE registration_key = %s', (registration_key,))
 
         conn.commit()
         conn.close()
@@ -222,7 +223,11 @@ def activate_user(chat_id: str, registration_key: str) -> dict:
 def get_user(chat_id: str) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE chat_id = ? AND is_active = 1', (str(chat_id),))
+    p = get_p() # 1. Get the placeholder
+    
+    # 2. Update line 225
+    cursor.execute(f'SELECT * FROM users WHERE chat_id = {p} AND is_active = 1', (str(chat_id),))
+    
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
@@ -231,7 +236,7 @@ def get_user(chat_id: str) -> dict:
 def get_user_by_key(registration_key: str) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE registration_key = ?', (registration_key,))
+    cursor.execute('SELECT * FROM users WHERE registration_key = %s', (registration_key,))
     row = cursor.fetchone()
     conn.close()
     return dict(row) if row else None
@@ -254,16 +259,16 @@ def register_user(chat_id: str, name: str, role: str, group_name: str = None) ->
     
     try:
         # Check exists
-        cursor.execute("SELECT 1 FROM users WHERE chat_id = ?", (str(chat_id),))
+        cursor.execute("SELECT 1 FROM users WHERE chat_id = %s", (str(chat_id),))
         if cursor.fetchone():
             cursor.execute("""
-                UPDATE users SET name=?, role=?, group_name=?, registration_key=?, is_active=1, activated_at=?
-                WHERE chat_id=?
+                UPDATE users SET name=%s, role=%s, group_name=%s, registration_key=%s, is_active=1, activated_at=%s
+                WHERE chat_id=%s
             """, (name, role, group_name, key, datetime.now().isoformat(), str(chat_id)))
         else:
             cursor.execute("""
                 INSERT INTO users (chat_id, name, role, group_name, registration_key, is_active, activated_at)
-                VALUES (?, ?, ?, ?, ?, 1, ?)
+                VALUES (%s, %s, %s, %s, %s, 1, %s)
             """, (str(chat_id), name, role, group_name, key, datetime.now().isoformat()))
             
         conn.commit()
@@ -281,11 +286,11 @@ def add_teacher_group(teacher_chat_id: str, group_name: str, subject: str = None
     cursor = conn.cursor()
     
     try:
-        cursor.execute("SELECT 1 FROM teacher_groups WHERE teacher_chat_id=? AND group_name=?", (str(teacher_chat_id), group_name))
+        cursor.execute("SELECT 1 FROM teacher_groups WHERE teacher_chat_id=%s AND group_name=%s", (str(teacher_chat_id), group_name))
         if cursor.fetchone():
-            cursor.execute("UPDATE teacher_groups SET subject=? WHERE teacher_chat_id=? AND group_name=?", (subject, str(teacher_chat_id), group_name))
+            cursor.execute("UPDATE teacher_groups SET subject=%s WHERE teacher_chat_id=%s AND group_name=%s", (subject, str(teacher_chat_id), group_name))
         else:
-            cursor.execute("INSERT INTO teacher_groups (teacher_chat_id, group_name, subject) VALUES (?, ?, ?)", (str(teacher_chat_id), group_name, subject))
+            cursor.execute("INSERT INTO teacher_groups (teacher_chat_id, group_name, subject) VALUES (%s, %s, %s)", (str(teacher_chat_id), group_name, subject))
             
         conn.commit()
         return True
@@ -299,7 +304,11 @@ def add_teacher_group(teacher_chat_id: str, group_name: str, subject: str = None
 def get_teacher_groups(teacher_chat_id: str) -> list:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('SELECT group_name, subject FROM teacher_groups WHERE teacher_chat_id = ?', (str(teacher_chat_id),))
+    p = get_p()  # 1. Get the placeholder
+    
+    # 2. Use f-string only for the placeholder character
+    cursor.execute(f'SELECT group_name, subject FROM teacher_groups WHERE teacher_chat_id = {p}', (str(teacher_chat_id),))
+    
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
@@ -309,6 +318,7 @@ def get_students_in_group(group_name: str) -> list:
     """Get all students in a group (Handling multi-group students)."""
     conn = get_connection()
     cursor = conn.cursor()
+    p = get_p()
     
     # Fetch ALL active students first (safer than complex SQL LIKEs across DB types)
     cursor.execute("SELECT * FROM users WHERE role = 'student' AND is_active = 1")
@@ -334,14 +344,26 @@ def get_students_in_group(group_name: str) -> list:
 def get_teacher_for_group(group_name: str) -> dict:
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('''
+    p = get_p()
+    
+    # CAST both IDs to TEXT to ensure the JOIN works regardless of DB types
+    query = f'''
         SELECT u.* FROM users u
-        JOIN teacher_groups tg ON u.chat_id = tg.teacher_chat_id
-        WHERE tg.group_name = ? AND u.is_active = 1
-    ''', (group_name,))
-    row = cursor.fetchone()
-    conn.close()
-    return dict(row) if row else None
+        JOIN teacher_groups tg ON CAST(u.chat_id AS TEXT) = CAST(tg.teacher_chat_id AS TEXT)
+        WHERE LOWER(tg.group_name) = LOWER({p}) AND u.is_active = 1
+    '''
+    
+    try:
+        cursor.execute(query, (group_name,))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        return None
+    except Exception as e:
+        print(f"❌ SQL JOIN Error: {e}")
+        return None
+    finally:
+        conn.close()
 
 
 def get_all_pending_users() -> list:
@@ -366,8 +388,8 @@ def delete_user(registration_key: str) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute('DELETE FROM users WHERE registration_key = ?', (registration_key,))
-        cursor.execute('DELETE FROM pending_teacher_groups WHERE registration_key = ?', (registration_key,))
+        cursor.execute('DELETE FROM users WHERE registration_key = %s', (registration_key,))
+        cursor.execute('DELETE FROM pending_teacher_groups WHERE registration_key = %s', (registration_key,))
         conn.commit()
         return True
     except Exception:
@@ -379,17 +401,17 @@ def delete_user_by_chat_id(chat_id: str) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT registration_key, role FROM users WHERE chat_id = ?", (str(chat_id),))
+        cursor.execute("SELECT registration_key, role FROM users WHERE chat_id = %s", (str(chat_id),))
         row = cursor.fetchone()
         if not row: return False
         
         reg_key = row['registration_key']
         role = row['role']
         
-        cursor.execute("DELETE FROM users WHERE chat_id = ?", (str(chat_id),))
+        cursor.execute("DELETE FROM users WHERE chat_id = %s", (str(chat_id),))
         if role == 'teacher':
-            cursor.execute("DELETE FROM teacher_groups WHERE teacher_chat_id = ?", (str(chat_id),))
-        cursor.execute("DELETE FROM pending_teacher_groups WHERE registration_key = ?", (reg_key,))
+            cursor.execute("DELETE FROM teacher_groups WHERE teacher_chat_id = %s", (str(chat_id),))
+        cursor.execute("DELETE FROM pending_teacher_groups WHERE registration_key = %s", (reg_key,))
         conn.commit()
         return True
     except Exception as e:
@@ -403,7 +425,7 @@ def update_user_name(chat_id: str, new_name: str) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE users SET name = ? WHERE chat_id = ?", (new_name, str(chat_id)))
+        cursor.execute("UPDATE users SET name = %s WHERE chat_id = %s", (new_name, str(chat_id)))
         conn.commit()
         return True
     except Exception:
@@ -416,7 +438,7 @@ def update_student_group(chat_id: str, new_group: str) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("UPDATE users SET group_name = ? WHERE chat_id = ? AND role = 'student'", (new_group, str(chat_id)))
+        cursor.execute("UPDATE users SET group_name = %s WHERE chat_id = %s AND role = 'student'", (new_group, str(chat_id)))
         conn.commit()
         return True
     except Exception:
@@ -430,20 +452,70 @@ def update_teacher_name(chat_id: str, new_name: str) -> bool:
 
 
 def update_teacher_groups(chat_id: str, new_group: Optional[str] = None, new_subject: Optional[str] = None) -> bool:
-    if not new_group and not new_subject:
-        return True
+    if not new_group:
+        return True 
+    
     conn = get_connection()
     cursor = conn.cursor()
+    p = get_p() # Get either %s or ?
+    
     try:
-        if new_group and new_subject:
-            cursor.execute("UPDATE teacher_groups SET group_name = ?, subject = ? WHERE teacher_chat_id = ?", (new_group, new_subject, str(chat_id)))
-        elif new_group:
-            cursor.execute("UPDATE teacher_groups SET group_name = ? WHERE teacher_chat_id = ?", (new_group, str(chat_id)))
-        elif new_subject:
-            cursor.execute("UPDATE teacher_groups SET subject = ? WHERE teacher_chat_id = ?", (new_subject, str(chat_id)))
+        # 1. Check if link exists
+        cursor.execute(f"SELECT 1 FROM teacher_groups WHERE teacher_chat_id = {p} AND group_name = {p}", 
+                       (str(chat_id), new_group))
+        
+        exists = cursor.fetchone()
+        
+        if exists:
+            if new_subject:
+                cursor.execute(f"UPDATE teacher_groups SET subject = {p} WHERE teacher_chat_id = {p} AND group_name = {p}", 
+                               (new_subject, str(chat_id), new_group))
+        else:
+            # 2. Insert new link (Reassignment)
+            cursor.execute(f"INSERT INTO teacher_groups (teacher_chat_id, group_name, subject) VALUES ({p}, {p}, {p})", 
+                           (str(chat_id), new_group, new_subject or "General"))
+        
         conn.commit()
         return True
-    except Exception:
+    except Exception as e:
+        print(f"❌ SQL Error: {e}")
         return False
     finally:
+        conn.close()
+        
+def get_user_by_name(name: str):
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        clean_name = name.strip()
+        # Postgres uses ILIKE, SQLite uses LIKE (usually case-insensitive)
+        try:
+            # Try Postgres Syntax first
+            cur.execute("SELECT chat_id, name FROM users WHERE name ILIKE %s LIMIT 1", (f"%{clean_name}%",))
+        except:
+            # Fallback to SQLite Syntax for local debugging/testing
+            cur.execute("SELECT chat_id, name FROM users WHERE name LIKE ? LIMIT 1", (f"%{clean_name}%",))
+        
+        row = cur.fetchone()
+        return {'chat_id': row[0], 'name': row[1]} if row else None
+    finally:
+        cur.close()
+        conn.close()
+
+def update_teacher_group_assignment(group_name, new_chat_id):
+    """Updates the teacher_groups table to match the new teacher ID."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        # Update based on group name (case-insensitive)
+        cur.execute("""
+            UPDATE teacher_groups 
+            SET teacher_chat_id = %s 
+            WHERE group_name ILIKE %s
+        """, (str(new_chat_id), group_name))
+        conn.commit()
+    except Exception as e:
+        print(f"Error auto-updating group: {e}")
+    finally:
+        cur.close()
         conn.close()

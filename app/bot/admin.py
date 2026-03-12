@@ -285,10 +285,6 @@ async def edit_student_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def edit_user_chat_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin sent chat_id to edit (student or teacher)."""
-    admin_chat_id = str(update.effective_user.id)
-    lang = get_user_language(admin_chat_id)
-    
     text = update.message.text.strip()
     if not text.isdigit():
         await update.message.reply_text("❌ Please send a numeric chat_id.")
@@ -300,21 +296,19 @@ async def edit_user_chat_entered(update: Update, context: ContextTypes.DEFAULT_T
     if not user:
         await update.message.reply_text("❌ No such user.")
         return ConversationHandler.END
-    
-    if user['role'] != 'student':
-        await update.message.reply_text("❌ This is not a student. Use /edit_teacher for teachers.")
-        return ConversationHandler.END
-    
+
     context.user_data['edit_target'] = target_chat_id
+
+    # DISTINGUISH PATHS HERE
+    if user['role'] == 'student':
+        await update.message.reply_text(f"✏️ Editing student: <b>{user['name']}</b>\nNew name? (/skip)", parse_mode='HTML')
+        return EDIT_STUDENT_NAME
     
-    await update.message.reply_text(
-        f"✏️ Editing student:\n\n"
-        f"👤 {user['name']}\n"
-        f"👥 Group: {user.get('group_name') or 'None'}\n\n"
-        f"Send a new <b>name</b> (or send /skip to leave unchanged).",
-        parse_mode='HTML'
-    )
-    return EDIT_STUDENT_NAME
+    elif user['role'] == 'teacher':
+        await update.message.reply_text(f"✏️ Editing teacher: <b>{user['name']}</b>\nNew name? (/skip)", parse_mode='HTML')
+        return EDIT_TEACHER_NAME
+    
+    return ConversationHandler.END
 
 
 async def edit_student_name(update: Update, context: ContextTypes.DEFAULT_TYPE):

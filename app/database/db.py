@@ -293,3 +293,10 @@ def init_database():
     conn.commit()
     conn.close()
     print("✅ Database initialized successfully.")
+    
+def get_p():
+    """Returns the correct placeholder: %s for Postgres, ? for SQLite."""
+    # If DATABASE_URL exists, we are on Render (Postgres)
+    if os.getenv("DATABASE_URL"):
+        return "%s"
+    return "?"
