@@ -30,14 +30,13 @@ def load_meetings():
     return Config.load_meetings()
 
 async def send_meeting_to_recipients(app: Application, meeting_config: dict, meeting_data: dict, prefix_key: str = None):
-    """Sends localized, rich formatted message to teacher and students with auto-healing DB logic."""
+    """Sends localized message to teacher and students with auto-healing DB logic."""
     group_name = meeting_config.get('group_name', 'Unknown')
     title = meeting_config.get('title', 'Lesson')
     desc = meeting_config.get('description', '')
     subject = meeting_config.get('subject', '')
     link = meeting_data.get('meet_link')
     
-    # 1. Source of Truth from JSON
     json_teacher_name = meeting_config.get('teacher_name')
     
     sch = meeting_config.get('schedule', {})
@@ -45,11 +44,11 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
 
     recipients = set()
     db_teacher_found = False
-    current_teacher_name = json_teacher_name # Default to JSON name
+    current_teacher_name = json_teacher_name
+    teacher = None  # ← Initialize here so it always exists!
 
     # --- PHASE 1: SMART TEACHER ROUTING (AUTO-HEALING) ---
     if group_name and group_name != 'Unknown':
-        # Local imports to prevent circular dependency issues
         from app.services.user_service import (
             get_teacher_for_group, 
             get_user_by_name, 
@@ -60,39 +59,38 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         
         teacher = get_teacher_for_group(group_name)
         
-        # MISMATCH CHECK: If DB name != JSON name, the JSON is the new authority
+        # MISMATCH CHECK
         if teacher and json_teacher_name and teacher.get('name') != json_teacher_name:
             logger.info(f"🔄 Mismatch for {group_name}. DB: {teacher.get('name')} | JSON: {json_teacher_name}")
-            teacher = None # This forces the lookup by name below
+            teacher = None
 
-        # Inside send_meeting_to_recipients, in the auto-heal block:
+        # AUTO-HEAL (inside the if block!)
+        if not teacher and json_teacher_name:
+            teacher = get_user_by_name(json_teacher_name)
+            if teacher:
+                logger.info(
+                    f"✅ Found {json_teacher_name} (ID: {teacher['chat_id']}). "
+                    f"Auto-healing DB..."
+                )
+                update_teacher_group_assignment(
+                    group_name, 
+                    teacher['chat_id'],
+                    subject=meeting_config.get('subject')
+                )
+            else:
+                logger.warning(
+                    f"❌ Teacher '{json_teacher_name}' not found in users table. "
+                    f"Has this teacher registered with the bot?"
+                )
 
-    if not teacher and json_teacher_name:
-        teacher = get_user_by_name(json_teacher_name)
-        if teacher:
-            logger.info(
-                f"✅ Found {json_teacher_name} (ID: {teacher['chat_id']}). "
-                f"Auto-healing DB..."
-            )
-            update_teacher_group_assignment(
-                group_name, 
-                teacher['chat_id'],
-                subject=meeting_config.get('subject')  # Pass subject!
-            )
-        else:
-            logger.warning(
-                f"❌ Teacher '{json_teacher_name}' not found in users table. "
-                f"Has this teacher registered with the bot?"
-            )
-
-        # Add Teacher to recipients
+        # ADD TEACHER TO RECIPIENTS (inside the if block!)
         if teacher and teacher.get('chat_id'):
             teacher_id = str(teacher['chat_id'])
             recipients.add(teacher_id)
             current_teacher_name = teacher.get('name', json_teacher_name)
             db_teacher_found = True
 
-    # --- PHASE 2: FALLBACKS (Only if DB/Name lookup failed) ---
+    # --- PHASE 2: FALLBACKS ---
     if not db_teacher_found:
         json_id = meeting_config.get('teacher_chat_id') or meeting_config.get('chat_id')
         if json_id:
@@ -101,6 +99,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
 
     # --- PHASE 3: STUDENTS ---
     if group_name and group_name != 'Unknown':
+        from app.services.user_service import get_students_in_group
         students = get_students_in_group(group_name)
         for student in students:
             if student.get('chat_id'):
@@ -111,8 +110,9 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         logger.warning(f"⚠️ No recipients found for group {group_name}")
         return
 
+    logger.info(f"📨 Sending to {len(recipients)} recipients for {title}")
+
     # --- PHASE 5: SENDING ---
-    from telegram.constants import ParseMode
     for chat_id in recipients:
         try:
             lang = get_user_language(chat_id)
