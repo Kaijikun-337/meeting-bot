@@ -5,7 +5,7 @@ from app.services.support_service import get_weekly_booking_count, create_bookin
 from app.services.lesson_service import get_available_slots_for_rescheduling
 from app.utils.localization import get_text, get_user_language
 from app.jitsi_meet import create_jitsi_meeting
-from app.services.support_service import can_book_support, record_support_booking
+from app.services.support_service import can_book_support
 from app.utils.localization import t
 
 SELECT_DATE, SELECT_TIME = range(2)
@@ -183,7 +183,7 @@ async def handle_book_support(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     
     # 2. Record the booking
-    success = record_support_booking(chat_id)
+    success = start_support_booking(chat_id)
     
     if success:
         # ✅ Success!
