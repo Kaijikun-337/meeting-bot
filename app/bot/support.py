@@ -45,40 +45,46 @@ def support_times_keyboard(slots, selected_date, lang='en'):
 
 # --- HANDLERS ---
 async def start_support_booking(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Triggered when student clicks '🆘 Book lesson with support'"""
+    """Triggered when student clicks 'Book lesson with support'"""
     chat_id = str(update.effective_chat.id)
     lang = get_user_language(chat_id)
-    
-    # 1. Check the 2-per-week Limit
-    count = get_weekly_booking_count(chat_id)
-    if count >= 2:
-        # Use localization if possible, or direct text
-        msg = get_text('support_limit_reached', lang) if get_text('support_limit_reached', lang) != 'support_limit_reached' else "❌ You have reached the limit of 2 support sessions this week."
-        await update.message.reply_text(msg)
+
+    # 1. Check weekly limit (now uses the REAL counter)
+    if not can_book_support(chat_id):
+        await update.message.reply_text(
+            get_text('support_limit_reached', lang)
+        )
         return ConversationHandler.END
-        
+
     # 2. Find Support Staff
     support = get_available_support_staff()
     if not support:
-        msg = get_text('support_no_staff', lang) if get_text('support_no_staff', lang) != 'support_no_staff' else "❌ No academic support staff available right now."
-        await update.message.reply_text(msg)
+        await update.message.reply_text(
+            get_text('support_no_staff', lang)
+        )
         return ConversationHandler.END
-        
+
     context.user_data['support_id'] = support['chat_id']
     context.user_data['support_name'] = support['name']
-    
-    # 3. Get Slots (Reuse teacher availability logic)
-    slots = get_available_slots_for_rescheduling(support['chat_id'], "", "Support")
-    
+
+    # 3. Get Slots FROM THE NEW SYSTEM (not rescheduling!)
+    from app.services.support_service import get_available_slots
+    slots = get_available_slots(support['chat_id'])
+
     if not slots:
-        msg = get_text('support_no_slots', lang) if get_text('support_no_slots', lang) != 'support_no_slots' else "❌ No available slots found. Support staff hasn't set their schedule."
-        await update.message.reply_text(msg)
+        await update.message.reply_text(
+            get_text('support_no_slots', lang)
+        )
         return ConversationHandler.END
-        
+
     context.user_data['support_slots'] = slots
-    
+
     await update.message.reply_text(
-        f"👨‍🏫 <b>Academic Support</b> with {support['name']}\nSelect a date:",
+        f"👨‍🏫 <b>Academic Support</b> with {support['name']}\n"
+        f"📏 Session: 30 minutes\n"
+        f"📊 Bookings this week: "
+        f"{get_weekly_booking_count(chat_id)}/2\n\n"
+        f"Select a date:",
         reply_markup=support_dates_keyboard(slots, lang),
         parse_mode='HTML'
     )

@@ -6,7 +6,10 @@ from typing import Optional
 from datetime import datetime
 from app.database.db import get_connection, get_p
 import psycopg2
+import logging
+from app.config import Config
 
+logger = logging.getLogger(__name__)
 
 def generate_registration_key(role: str) -> str:
     """Generate unique registration key."""
@@ -484,38 +487,80 @@ def update_teacher_groups(chat_id: str, new_group: Optional[str] = None, new_sub
         conn.close()
         
 def get_user_by_name(name: str):
+    """Look up a user by name (fuzzy, case-insensitive)."""
     conn = get_connection()
     cur = conn.cursor()
     try:
         clean_name = name.strip()
-        # Postgres uses ILIKE, SQLite uses LIKE (usually case-insensitive)
-        try:
-            # Try Postgres Syntax first
-            cur.execute("SELECT chat_id, name FROM users WHERE name ILIKE %s LIMIT 1", (f"%{clean_name}%",))
-        except:
-            # Fallback to SQLite Syntax for local debugging/testing
-            cur.execute("SELECT chat_id, name FROM users WHERE name LIKE ? LIMIT 1", (f"%{clean_name}%",))
-        
+        if not clean_name:
+            return None
+
+        if Config.DATABASE_URL:
+            cur.execute(
+                "SELECT chat_id, name FROM users WHERE name ILIKE %s LIMIT 1",
+                (f"%{clean_name}%",)
+            )
+        else:
+            cur.execute(
+                "SELECT chat_id, name FROM users WHERE name LIKE ? LIMIT 1",
+                (f"%{clean_name}%",)
+            )
+
         row = cur.fetchone()
-        return {'chat_id': row[0], 'name': row[1]} if row else None
+        if row:
+            # Access by COLUMN NAME, not index
+            # Works with both RealDictCursor and regular cursor
+            if isinstance(row, dict):
+                return {'chat_id': row['chat_id'], 'name': row['name']}
+            else:
+                return {'chat_id': row[0], 'name': row[1]}
+        return None
+    except Exception as e:
+        logger.error(f"❌ get_user_by_name failed for '{name}': {e}", exc_info=True)
+        return None
     finally:
         cur.close()
         conn.close()
 
-def update_teacher_group_assignment(group_name, new_chat_id):
-    """Updates the teacher_groups table to match the new teacher ID."""
+def update_teacher_group_assignment(group_name: str, new_chat_id: str, subject: str = None):
+    """
+    Updates or INSERTS the teacher-group mapping.
+    Uses UPSERT to handle both 'update existing' and 'create new' cases.
+    """
     conn = get_connection()
     cur = conn.cursor()
     try:
-        # Update based on group name (case-insensitive)
-        cur.execute("""
-            UPDATE teacher_groups 
-            SET teacher_chat_id = %s 
-            WHERE group_name ILIKE %s
-        """, (str(new_chat_id), group_name))
+        new_chat_id = str(new_chat_id)
+
+        if Config.DATABASE_URL:
+            # Postgres: True UPSERT
+            # First, remove any OLD assignment for this group
+            cur.execute(
+                "DELETE FROM teacher_groups WHERE group_name ILIKE %s",
+                (group_name,)
+            )
+            # Then insert the new one
+            cur.execute(
+                """INSERT INTO teacher_groups (teacher_chat_id, group_name, subject)
+                   VALUES (%s, %s, %s)""",
+                (new_chat_id, group_name, subject)
+            )
+        else:
+            # SQLite
+            cur.execute(
+                "DELETE FROM teacher_groups WHERE group_name = ?",
+                (group_name,)
+            )
+            cur.execute(
+                """INSERT INTO teacher_groups (teacher_chat_id, group_name, subject)
+                   VALUES (?, ?, ?)""",
+                (new_chat_id, group_name, subject)
+            )
+
         conn.commit()
+        logger.info(f"✅ Group '{group_name}' now assigned to teacher {new_chat_id}")
     except Exception as e:
-        print(f"Error auto-updating group: {e}")
+        logger.error(f"❌ Failed to update teacher group assignment: {e}")
     finally:
         cur.close()
         conn.close()

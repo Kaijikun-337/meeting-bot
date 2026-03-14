@@ -23,6 +23,7 @@ class Config:
     # Google Sheets
     SHEETS_CREDENTIALS_FILE = "credentials.json"
     GOOGLE_SHEETS_ID = os.getenv("GOOGLE_SHEETS_ID")
+    DATABASE_URL = os.getenv("DATABASE_URL")
     
     # Rules
     MIN_HOURS_BEFORE_CHANGE = 2
@@ -81,3 +82,15 @@ class Config:
                 return course.get('price', price_list.get('default_price', 100.00))
         
         return price_list.get('default_price', 100.00)
+    
+    @staticmethod
+    def load_support_schedule():
+        """Load support availability from JSON."""
+        import json, os
+        path = os.path.join(os.path.dirname(__file__), '..', 'support_schedule.json')
+        try:
+            with open(path, 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("⚠️ support_schedule.json not found!")
+            return None

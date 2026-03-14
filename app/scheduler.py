@@ -5,7 +5,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from telegram.constants import ParseMode
 from telegram.ext import Application
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 from app.config import Config
 from app.jitsi_meet import create_jitsi_meeting
@@ -66,15 +65,25 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
             logger.info(f"🔄 Mismatch for {group_name}. DB: {teacher.get('name')} | JSON: {json_teacher_name}")
             teacher = None # This forces the lookup by name below
 
-        # If mismatch detected OR no group assignment exists, look up ID by Name
-        if not teacher and json_teacher_name:
-            teacher = get_user_by_name(json_teacher_name)
-            if teacher:
-                logger.info(f"✅ Found {json_teacher_name} (ID: {teacher['chat_id']}). Auto-healing DB...")
-                # This line fixes the 'teacher_groups' table for you!
-                update_teacher_group_assignment(group_name, teacher['chat_id'])
-            else:
-                logger.warning(f"❌ '{json_teacher_name}' not found in users table.")
+        # Inside send_meeting_to_recipients, in the auto-heal block:
+
+    if not teacher and json_teacher_name:
+        teacher = get_user_by_name(json_teacher_name)
+        if teacher:
+            logger.info(
+                f"✅ Found {json_teacher_name} (ID: {teacher['chat_id']}). "
+                f"Auto-healing DB..."
+            )
+            update_teacher_group_assignment(
+                group_name, 
+                teacher['chat_id'],
+                subject=meeting_config.get('subject')  # Pass subject!
+            )
+        else:
+            logger.warning(
+                f"❌ Teacher '{json_teacher_name}' not found in users table. "
+                f"Has this teacher registered with the bot?"
+            )
 
         # Add Teacher to recipients
         if teacher and teacher.get('chat_id'):
@@ -156,24 +165,47 @@ async def job_ask_recording(app: Application, meeting_config: dict):
     """Remind teacher to upload recording AND mark attendance."""
     group_name = meeting_config.get('group_name')
     
-    # Priority 1: Get current teacher from DB
-    teacher = get_teacher_for_group(group_name) if group_name else None
-    
-    if teacher and teacher.get('chat_id'):
-        teacher_id = teacher['chat_id']
-        teacher_name = teacher['name']
-    else:
-        # Fallback to JSON only if DB is empty
-        teacher_id = meeting_config.get('teacher_chat_id') or meeting_config.get('chat_id')
-        teacher_name = meeting_config.get('teacher_name', 'Teacher')
+    # --- SMART TEACHER LOOKUP (mirrors send_meeting_to_recipients) ---
+    json_teacher_name = meeting_config.get('teacher_name')
+    teacher = None
+    teacher_id = None
+    teacher_name = json_teacher_name or 'Teacher'
 
+    if group_name:
+        from app.services.user_service import (
+            get_teacher_for_group,
+            get_user_by_name,
+            update_teacher_group_assignment
+        )
+        
+        teacher = get_teacher_for_group(group_name)
+        
+        # Mismatch check: JSON is authority
+        if teacher and json_teacher_name and teacher.get('name') != json_teacher_name:
+            logger.info(f"🔄 Recording reminder: teacher mismatch for {group_name}")
+            teacher = None
+        
+        # Auto-heal if needed
+        if not teacher and json_teacher_name:
+            teacher = get_user_by_name(json_teacher_name)
+            if teacher:
+                update_teacher_group_assignment(group_name, teacher['chat_id'])
+        
+        if teacher and teacher.get('chat_id'):
+            teacher_id = teacher['chat_id']
+            teacher_name = teacher.get('name', json_teacher_name)
+    
+    # Fallback
     if not teacher_id:
-        logger.warning(f"⚠️ No teacher found to send recording reminder for {group_name}")
+        teacher_id = meeting_config.get('teacher_chat_id') or meeting_config.get('chat_id')
+    
+    if not teacher_id:
+        logger.warning(f"⚠️ No teacher for recording reminder: {group_name}")
         return 
         
     title = meeting_config.get('title')
     
-    # 2. Send Video Reminder
+    # --- VIDEO REMINDER ---
     msg_video = (
         f"🎥 <b>Lesson Finished: {title}</b>\n\n"
         f"Please upload the video recording now.\n"
@@ -186,17 +218,27 @@ async def job_ask_recording(app: Application, meeting_config: dict):
     )
     
     try:
-        await app.bot.send_message(chat_id=teacher_id, text=msg_video, parse_mode=ParseMode.HTML)
+        await app.bot.send_message(
+            chat_id=teacher_id, 
+            text=msg_video, 
+            parse_mode=ParseMode.HTML
+        )
         logger.info(f"✅ Sent recording reminder to {teacher_name}")
     except Exception as e:
         logger.error(f"❌ Failed to send recording reminder: {e}")
     
+    # --- ATTENDANCE REMINDER (NO kb - just text) ---
     msg_attend = (
-        f"Please mark who was present for <b>{group_name} in paraplan crm.</b>."
+        f"📋 Please mark who was present for "
+        f"<b>{group_name}</b> in Paraplan CRM."
     )
     
     try:
-        await app.bot.send_message(chat_id=teacher_id, text=msg_attend, reply_markup=kb, parse_mode=ParseMode.HTML)
+        await app.bot.send_message(
+            chat_id=teacher_id, 
+            text=msg_attend, 
+            parse_mode=ParseMode.HTML
+        )
     except Exception as e:
         logger.error(f"❌ Failed to send attendance reminder: {e}")
 

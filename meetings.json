@@ -61,7 +61,7 @@
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Мухаммад",
       "duration_minutes": 60,
-      "teacher_name": "Sardor",
+      "teacher_name": "Ruslan",
       "subject": "Английский",
       "group_name": "Group Mu",
       "schedule": {
@@ -74,14 +74,14 @@
       "id": "en_even_1400_group_ir",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Ирина",
-      "duration_minutes": 60,
+      "duration_minutes": 30,
       "teacher_name": "Sardor",
       "subject": "Английский",
       "group_name": "Group Ir",
       "schedule": {
         "days": ["tuesday", "thursday"],
-        "hour": 14,
-        "minute": 0
+        "hour": 15,
+        "minute": 30
       }
     },
     {
@@ -99,45 +99,45 @@
       }
     },
     {
-      "id": "en_weekday_1400_group_sra",
+      "id": "en_weekday_1200_group_sra",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Самир, Руслан, Амир",
-      "duration_minutes": 60,
+      "duration_minutes": 30,
       "teacher_name": "Sardor",
       "subject": "Английский",
       "group_name": "Group S/R/A",
       "schedule": {
         "days": ["saturday"],
-        "hour": 14,
+        "hour": 12,
         "minute": 0
       }
     },
     {
-      "id": "math_odd_1500_group_kd",
+      "id": "math_odd_1930_group_kd",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Камрон, Даврон",
-      "duration_minutes": 60,
+      "duration_minutes": 30,
       "teacher_name": "Sardor",
       "subject": "Математика",
       "group_name": "Group K/D",
       "schedule": {
         "days": ["monday", "wednesday", "friday"],
-        "hour": 15,
-        "minute": 0
+        "hour": 19,
+        "minute": 30
       }
     },
     {
-      "id": "en_even_1500_group_kd",
+      "id": "en_even_1930_group_kdm",
       "title": "Английский язык",
-      "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Камрон, Даврон",
-      "duration_minutes": 60,
+      "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Камрон, Даврон, Муслима",
+      "duration_minutes": 30,
       "teacher_name": "Sardor",
       "subject": "Английский",
-      "group_name": "Group K/D",
+      "group_name": "Group K/D/M",
       "schedule": {
-        "days": ["tuesday", "thursday", "saturday"],
-        "hour": 15,
-        "minute": 0
+        "days": ["tuesday", "thursday"],
+        "hour": 19,
+        "minute": 30
       }
     },
     {
@@ -172,14 +172,14 @@
       "id": "en_even_1900_group_be",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Бехруз",
-      "duration_minutes": 60,
+      "duration_minutes": 30,
       "teacher_name": "Sardor",
       "subject": "Английский",
       "group_name": "Group Be",
       "schedule": {
-        "days": ["tuesday", "thursday", "saturday"],
-        "hour": 19,
-        "minute": 0
+        "days": ["monday", "wednesday", "friday"],
+        "hour": 18,
+        "minute": 30
       }
     },
     {
@@ -200,7 +200,7 @@
       "id": "en_odd_2030_group_sra",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Самир, Руслан, Амир",
-      "duration_minutes": 60,
+      "duration_minutes": 30,
       "teacher_name": "Sardor",
       "subject": "Английский",
       "group_name": "Group S/R/A",
@@ -208,20 +208,6 @@
         "days": ["monday", "wednesday"],
         "hour": 20,
         "minute": 30
-      }
-    },
-    {
-      "id": "en_even_2100_group_na",
-      "title": "Английский язык",
-      "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Наргиза",
-      "duration_minutes": 60,
-      "teacher_name": "Sardor",
-      "subject": "Английский",
-      "group_name": "Group Na",
-      "schedule": {
-        "days": ["tuesday", "thursday", "saturday"],
-        "hour": 21,
-        "minute": 0
       }
     },
     {
@@ -236,6 +222,20 @@
         "days": ["monday", "wednesday"],
         "hour": 21,
         "minute": 30
+      }
+    },
+    {
+      "id": "en_even_1900_group_kdm",
+      "title": "Английский язык",
+      "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Камрон, Даврон, Муслима",
+      "duration_minutes": 30,
+      "teacher_name": "Sardor",
+      "subject": "Английский",
+      "group_name": "Group K/D/M",
+      "schedule": {
+        "days": ["saturday"],
+        "hour": 19,
+        "minute": 0
       }
     }
   ]

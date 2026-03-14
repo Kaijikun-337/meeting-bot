@@ -242,21 +242,7 @@ def init_database():
         )
     """)
     
-        # 10. Support Bookings
-    # Tracks Academic Support sessions
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS support_bookings (
-            id {pk_type},
-            student_chat_id TEXT NOT NULL,
-            support_chat_id TEXT NOT NULL,
-            booking_date TEXT NOT NULL,  -- DD-MM-YYYY
-            booking_time TEXT NOT NULL,  -- HH:MM
-            status TEXT DEFAULT 'scheduled', -- scheduled, completed, cancelled
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-        # Add this inside your create_tables() function in db.py
+    # Replace your old support_bookings table with this
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS support_bookings (
             id {pk_type},
@@ -264,7 +250,8 @@ def init_database():
             support_chat_id TEXT NOT NULL,
             booking_date TEXT NOT NULL,
             booking_time TEXT NOT NULL,
-            meet_link TEXT,
+            jitsi_link TEXT,
+            week_start TEXT NOT NULL,
             status TEXT DEFAULT 'scheduled',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
