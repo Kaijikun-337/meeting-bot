@@ -1,11 +1,8 @@
 import random
 import string
-import json
-import os
 from typing import Optional
 from datetime import datetime
 from app.database.db import get_connection, get_p
-import psycopg2
 import logging
 from app.config import Config
 

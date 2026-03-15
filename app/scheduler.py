@@ -53,8 +53,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
             get_teacher_for_group, 
             get_user_by_name, 
             update_teacher_group_assignment,
-            get_students_in_group,
-            get_user_language
+            get_students_in_group
         )
         
         teacher = get_teacher_for_group(group_name)
