@@ -19,7 +19,6 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
         keyboard = [
             [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
             [KeyboardButton(get_text('btn_new_student', lang)), KeyboardButton(get_text('btn_new_teacher', lang))],
-            # 🟢 REPLACED btn_status WITH btn_academic_support
             [KeyboardButton(get_text('btn_users', lang)), KeyboardButton(get_text('btn_academic_support', lang))],
             [KeyboardButton(get_text('btn_language', lang)), KeyboardButton(get_text('btn_help', lang))]
         ]
@@ -30,18 +29,16 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
             [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_availability', lang))],
             [KeyboardButton(get_text('btn_language', lang)), KeyboardButton(get_text('btn_help', lang))]
         ]
-        
     elif is_support:
-        # 🟢 TELEGRAM FIX: You cannot send an empty array []. 
-        # To make it truly blank, we use ReplyKeyboardRemove.
-        return ReplyKeyboardRemove()
-
-    else:
-        # Student menu
         keyboard = [
             [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
-            [KeyboardButton(get_text('btn_change_lesson', lang)), KeyboardButton(get_text('btn_pay', lang))],
-            # 🟢 NEW BUTTON FOR STUDENT
+            [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_language', lang))],
+            [KeyboardButton(get_text('btn_help', lang))]
+        ]
+    else:
+        # Student menu — NO payment, NO change lesson
+        keyboard = [
+            [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
             [KeyboardButton(get_text('btn_book_support', lang))],
             [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_language', lang))],
             [KeyboardButton(get_text('btn_help', lang))]

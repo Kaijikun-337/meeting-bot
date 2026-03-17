@@ -109,55 +109,59 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_user_language(chat_id)
     
     user = get_user(chat_id)
-    
     if not user:
         await update.message.reply_text(get_text('not_registered', lang))
         return
     
-    role_key = 'role_teacher' if user['role'] == 'teacher' else 'role_student'
+    # ✅ Handle all three roles
+    if user['role'] == 'teacher':
+        role_key = 'role_teacher'
+    elif user['role'] == 'support':
+        role_key = 'role_support'
+    else:
+        role_key = 'role_student'
+    
+    role_icon = "🛠" if user['role'] == 'support' else ("👨‍🏫" if user['role'] == 'teacher' else "👨‍🎓")
     
     lines = [
         f"<b>{get_text('your_status', lang)}</b>",
         "",
         f"👤 {get_text('status_name', lang)}: {user['name']}",
-        f"🎭 {get_text('status_role', lang)}: {get_text(role_key, lang)}",
+        f"{role_icon} {get_text('status_role', lang)}: {get_text(role_key, lang)}",
     ]
     
-    # NEW: If teacher, show list of groups from the separate table
+    # Teacher-specific info
     if user['role'] == 'teacher':
+        from app.services.user_service import get_teacher_groups
         groups = get_teacher_groups(chat_id)
         if groups:
-            # Format: "Group A (Math), Group B (Physics)"
-            group_list = []
-            for g in groups:
-                g_name = g['group_name']
-                subj = g.get('subject')
-                if subj:
-                    group_list.append(f"{g_name} ({subj})")
-                else:
-                    group_list.append(g_name)
-            
-            groups_str = ", ".join(group_list)
+            groups_str = ", ".join([g['group_name'] for g in groups])
             lines.append(f"📚 {get_text('status_teaching_groups', lang)}: {groups_str}")
-            
-    # If student, show their single group
-    elif user.get('group_name'):
-        lines.append(f"👥 {get_text('status_group', lang)}: {user['group_name']}")
     
+    # Student-specific info
+    elif user['role'] == 'student':
+        if user.get('group_name'):
+            lines.append(f"👥 {get_text('status_group', lang)}: {user['group_name']}")
+    
+    # Support-specific info
+    elif user['role'] == 'support':
+        lines.append(f"📋 Role: Academic Support Staff")
+    
+    # Registration date (all roles)
     if user.get('activated_at'):
-        val = user['activated_at']
-        # If it's a Postgres datetime object, format it
-        if hasattr(val, 'strftime'):
-            date_str = val.strftime("%d-%m-%Y")
-        else:
-            # If it's a string (SQLite), slice it
-            date_str = str(val)[:10]
-            
-        lines.append(f"📅 {get_text('status_registered', lang)}: {date_str}")
+        try:
+            from datetime import datetime
+            date_obj = user['activated_at']
+            if isinstance(date_obj, str):
+                date_obj = datetime.fromisoformat(date_obj)
+            date_str = date_obj.strftime("%d %B %Y")
+            lines.append(f"📅 {get_text('status_registered', lang)}: {date_str}")
+        except:
+            pass
     
     await update.message.reply_text(
         "\n".join(lines),
-        parse_mode='HTML'
+        parse_mode="HTML"
     )
 
 

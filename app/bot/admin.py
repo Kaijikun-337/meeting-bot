@@ -224,7 +224,12 @@ async def delete_user_chat_entered(update: Update, context: ContextTypes.DEFAULT
     
     context.user_data['delete_target'] = target_chat_id
     
-    role_label = get_text('role_teacher', lang) if user['role'] == 'teacher' else get_text('role_student', lang)
+    if user['role'] == 'teacher':
+        role_label = get_text('role_teacher', lang)
+    elif user['role'] == 'support':
+        role_label = get_text('role_support', lang)
+    else:
+        role_label = get_text('role_student', lang)
     
     await update.message.reply_text(
         f"⚠️ <b>Confirm delete</b>\n\n"

@@ -22,7 +22,7 @@ class Config:
     
     # Google Sheets
     SHEETS_CREDENTIALS_FILE = "credentials.json"
-    GOOGLE_SHEETS_ID = os.getenv("GOOGLE_SHEETS_ID")
+    #GOOGLE_SHEETS_ID = os.getenv("GOOGLE_SHEETS_ID")
     DATABASE_URL = os.getenv("DATABASE_URL")
     
     # Rules

@@ -246,12 +246,13 @@ async def select_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send homework to all students in the group anonymously."""
+    """Send homework to all students in the group AND to support staff."""
     query = update.callback_query
-    await query.answer(get_text('sending', lang='en'))
     
     chat_id = str(update.effective_user.id)
     lang = get_user_language(chat_id)
+    
+    await query.answer(get_text('sending', lang))
     
     if chat_id not in homework_sessions:
         await query.edit_message_text(get_text('session_expired', lang))
@@ -259,6 +260,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     session = homework_sessions[chat_id]
     group_name = session['selected_group']
+    teacher_name = session.get('teacher_name', 'Teacher')
     files = session['files']
     
     # Get students
@@ -267,6 +269,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sent_count = 0
     failed_count = 0
     
+    # --- PHASE 1: SEND TO STUDENTS ---
     for student in students:
         student_chat_id = student.get('chat_id')
         if not student_chat_id:
@@ -276,40 +279,14 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             student_lang = get_user_language(student_chat_id)
             
-            # Send anonymous header message
             await context.bot.send_message(
                 chat_id=student_chat_id,
                 text=get_text('homework_received', student_lang),
                 parse_mode="HTML"
             )
             
-            # Send each file
             for file_info in files:
-                if file_info['type'] == 'document':
-                    await context.bot.send_document(
-                        chat_id=student_chat_id,
-                        document=file_info['file_id']
-                    )
-                elif file_info['type'] == 'photo':
-                    await context.bot.send_photo(
-                        chat_id=student_chat_id,
-                        photo=file_info['file_id']
-                    )
-                elif file_info['type'] == 'video':
-                    await context.bot.send_video(
-                        chat_id=student_chat_id,
-                        video=file_info['file_id']
-                    )
-                elif file_info['type'] == 'audio':
-                    await context.bot.send_audio(
-                        chat_id=student_chat_id,
-                        audio=file_info['file_id']
-                    )
-                elif file_info['type'] == 'voice':
-                    await context.bot.send_voice(
-                        chat_id=student_chat_id,
-                        voice=file_info['file_id']
-                    )
+                await _send_file(context.bot, student_chat_id, file_info)
             
             sent_count += 1
             
@@ -317,10 +294,57 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"Failed to send homework to {student_chat_id}: {e}")
             failed_count += 1
     
-    # Clean up session
+    # --- PHASE 2: SEND TO SUPPORT STAFF ---
+    try:
+        from app.services.support_service import get_available_support_staff
+        from datetime import datetime
+        import pytz
+        from app.config import Config
+        
+        support = get_available_support_staff()
+        
+        if support and support.get('chat_id'):
+            support_id = support['chat_id']
+            support_lang = get_user_language(str(support_id))
+            
+            tz = pytz.timezone(Config.TIMEZONE)
+            now = datetime.now(tz)
+            timestamp = now.strftime("%d-%m-%Y %H:%M")
+            
+            # Build student list for the info message
+            student_names = [s.get('name', 'Unknown') for s in students if s.get('name')]
+            student_list = ", ".join(student_names) if student_names else "No students"
+            
+            # Rich info message for support
+            support_header = (
+                f"📚 <b>Homework Notification</b>\n\n"
+                f"👨‍🏫 Teacher: <b>{teacher_name}</b>\n"
+                f"👥 Group: <b>{group_name}</b>\n"
+                f"👤 Students: {student_list}\n"
+                f"📎 Files: {len(files)}\n"
+                f"🕐 Sent at: {timestamp}\n"
+                f"{'─' * 30}"
+            )
+            
+            await context.bot.send_message(
+                chat_id=support_id,
+                text=support_header,
+                parse_mode="HTML"
+            )
+            
+            # Send the actual files
+            for file_info in files:
+                await _send_file(context.bot, support_id, file_info)
+            
+            print(f"✅ Homework copy sent to support: {support['name']}")
+            
+    except Exception as e:
+        print(f"⚠️ Failed to send homework to support: {e}")
+        # Don't fail the whole operation if support notification fails
+    
+    # --- PHASE 3: CLEANUP ---
     del homework_sessions[chat_id]
     
-    # Report results
     if failed_count > 0:
         result_text = get_text('homework_sent_partial', lang).format(
             sent=sent_count,
@@ -332,6 +356,20 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(result_text, parse_mode="HTML")
     
     return ConversationHandler.END
+
+
+async def _send_file(bot, chat_id, file_info):
+    """Helper to send a single file by type."""
+    if file_info['type'] == 'document':
+        await bot.send_document(chat_id=chat_id, document=file_info['file_id'])
+    elif file_info['type'] == 'photo':
+        await bot.send_photo(chat_id=chat_id, photo=file_info['file_id'])
+    elif file_info['type'] == 'video':
+        await bot.send_video(chat_id=chat_id, video=file_info['file_id'])
+    elif file_info['type'] == 'audio':
+        await bot.send_audio(chat_id=chat_id, audio=file_info['file_id'])
+    elif file_info['type'] == 'voice':
+        await bot.send_voice(chat_id=chat_id, voice=file_info['file_id'])
 
 
 async def cancel_homework(update: Update, context: ContextTypes.DEFAULT_TYPE):

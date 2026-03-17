@@ -980,6 +980,11 @@ TRANSLATIONS = {
         'ru': '✅ <b>Поддержка забронирована!</b>\n\nВаш запрос отправлен команде поддержки. Они свяжутся с вами в ближайшее время.',
         'uz': '✅ <b>Yordam darsi band qilindi!</b>\n\nSizning so\'rovingiz yordam guruhiga yuborildi. Ular tez orada siz bilan bog\'lanishadi.'
     },
+    'role_support':{
+        'en':"Academic Support",
+        'ru':"Второй учитель",
+        'uz':"Ikkinchi o'qituvchi"
+    }
 }
 
 def get_text(key: str, lang: str = 'en') -> str:

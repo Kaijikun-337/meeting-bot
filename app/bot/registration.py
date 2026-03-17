@@ -23,14 +23,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    # Check if already registered
+        # Check if already registered
     if is_registered(chat_id):
         user = get_user(chat_id)
         is_teacher = (user['role'] == 'teacher')
+        is_support = (user['role'] == 'support')
         await update.message.reply_text(
             get_text('already_registered', lang),
             parse_mode='HTML',
-            reply_markup=main_menu_keyboard(is_admin=False, is_teacher=is_teacher, lang=lang)
+            reply_markup=main_menu_keyboard(
+                is_admin=False, 
+                is_teacher=is_teacher, 
+                is_support=is_support, 
+                lang=lang
+            )
         )
         return ConversationHandler.END
 
@@ -111,29 +117,40 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     role = result['role']
     set_user_language(chat_id, lang)
     group = result.get('group_name', '')
-    
-    role_text = get_text('role_teacher', lang) if role == 'teacher' else get_text('role_student', lang)
+
+    # ✅ NEW: Handle all three roles properly
+    if role == 'teacher':
+        role_text = get_text('role_teacher', lang)
+    elif role == 'support':
+        role_text = get_text('role_support', lang)
+    else:
+        role_text = get_text('role_student', lang)
+
     role_icon = "🛠" if role == "support" else ("👨‍🏫" if role == "teacher" else "👨‍🎓")
-    
+
     group_text = f"\n{get_text('status_group', lang)}: {group}" if group else ""
-    
-    # Use .format() carefully with localized strings
-    # Ensure your localization keys for 'registration_success' have {icon}, {name}, {role}, {group} placeholders
+
     msg = get_text('registration_success', lang).format(
         icon=role_icon,
         name=name,
         role=role_text,
         group=group_text
     )
-    
-    is_teacher = (role == 'teacher') 
+
+    is_teacher = (role == 'teacher')
+    is_support = (role == 'support')
 
     await update.message.reply_text(
         msg,
         parse_mode='HTML',
-        reply_markup=main_menu_keyboard(is_admin=False, is_teacher=is_teacher, lang=lang)
+        reply_markup=main_menu_keyboard(
+            is_admin=False, 
+            is_teacher=is_teacher, 
+            is_support=is_support, 
+            lang=lang
+        )
     )
-    
+
     return ConversationHandler.END
 
 

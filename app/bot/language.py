@@ -35,7 +35,6 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ Failed to change language.")
         return
 
-    # Send confirmation in the new language
     await query.edit_message_text(get_text('language_changed', new_lang))
 
     # Decide which keyboard to show
@@ -43,17 +42,20 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_admin = (str(chat_id) == str(Config.ADMIN_CHAT_ID))
     
     if is_admin:
-        # Admin full menu
         kb = main_menu_keyboard(is_admin=True, is_teacher=False, lang=new_lang)
     elif user:
-        # Registered user: teacher or student
+        # ✅ NEW: Handle all three roles
         is_teacher = (user['role'] == 'teacher')
-        kb = main_menu_keyboard(is_admin=False, is_teacher=is_teacher, lang=new_lang)
+        is_support = (user['role'] == 'support')
+        kb = main_menu_keyboard(
+            is_admin=False, 
+            is_teacher=is_teacher, 
+            is_support=is_support, 
+            lang=new_lang
+        )
     else:
-        # Unregistered user: only Language button
         kb = unregistered_menu_keyboard(new_lang)
 
-    # Refresh their reply keyboard
     await context.bot.send_message(
         chat_id=chat_id,
         text="⬇️",  
