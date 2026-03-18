@@ -2,11 +2,11 @@
   "session_duration_minutes": 30,
   "max_bookings_per_week": 2,
   "schedule": {
-    "monday":    {"start": "16:00", "end": "20:30"},
-    "tuesday":   {"start": "18:00", "end": "21:30"},
-    "wednesday": {"start": "15:00", "end": "20:00"},
-    "thursday":  {"start": "16:00", "end": "20:30"},
-    "friday":    {"start": "16:00", "end": "20:30"},
-    "saturday":  {"start": "16:00", "end": "20:30"}
+    "monday":    {"start": "16:00", "end": "21:00"},
+    "tuesday":   {"start": "18:00", "end": "21:00"},
+    "wednesday": {"start": "15:00", "end": "21:00"},
+    "thursday":  {"start": "16:00", "end": "21:00"},
+    "friday":    {"start": "16:00", "end": "21:00"},
+    "saturday":  {"start": "16:00", "end": "21:00"}
   }
 }
