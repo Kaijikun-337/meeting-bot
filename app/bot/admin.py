@@ -515,19 +515,3 @@ async def show_student_stats(update: Update, student_id: str):
         
     await update.message.reply_text(msg, parse_mode='HTML')
     
-async def new_support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /new_support command (admin only)."""
-    chat_id = str(update.effective_chat.id)
-    
-    if not is_admin(chat_id):
-        return ConversationHandler.END
-    
-    context.user_data['new_user'] = {'role': 'support'}
-    
-    await update.message.reply_text(
-        "🛠 <b>New Academic Support Registration</b>\n\n"
-        "Enter the staff member's <b>full name</b>:",
-        parse_mode='HTML'
-    )
-    
-    return ENTERING_NAME
