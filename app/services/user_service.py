@@ -484,7 +484,7 @@ def update_teacher_groups(chat_id: str, new_group: Optional[str] = None, new_sub
         conn.close()
         
 def get_user_by_name(name: str):
-    """Look up a user by name (fuzzy, case-insensitive)."""
+    """Look up a user by name. Tries exact match first, then fuzzy."""
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -493,20 +493,56 @@ def get_user_by_name(name: str):
             return None
 
         if Config.DATABASE_URL:
+            # Try EXACT match first (case-insensitive)
             cur.execute(
-                "SELECT chat_id, name FROM users WHERE name ILIKE %s LIMIT 1",
-                (f"%{clean_name}%",)
+                """SELECT chat_id, name FROM users 
+                   WHERE name ILIKE %s 
+                   AND chat_id IS NOT NULL 
+                   AND chat_id != ''
+                   AND is_active = 1
+                   LIMIT 1""",
+                (clean_name,)
             )
+            row = cur.fetchone()
+            
+            # Fallback to fuzzy ONLY if exact match fails
+            if not row:
+                cur.execute(
+                    """SELECT chat_id, name FROM users 
+                       WHERE name ILIKE %s 
+                       AND chat_id IS NOT NULL 
+                       AND chat_id != ''
+                       AND is_active = 1
+                       LIMIT 1""",
+                    (f"%{clean_name}%",)
+                )
+                row = cur.fetchone()
         else:
+            # SQLite: same logic
             cur.execute(
-                "SELECT chat_id, name FROM users WHERE name LIKE ? LIMIT 1",
-                (f"%{clean_name}%",)
+                """SELECT chat_id, name FROM users 
+                   WHERE name = ? COLLATE NOCASE
+                   AND chat_id IS NOT NULL 
+                   AND chat_id != ''
+                   AND is_active = 1
+                   LIMIT 1""",
+                (clean_name,)
             )
+            row = cur.fetchone()
+            
+            if not row:
+                cur.execute(
+                    """SELECT chat_id, name FROM users 
+                       WHERE name LIKE ? 
+                       AND chat_id IS NOT NULL 
+                       AND chat_id != ''
+                       AND is_active = 1
+                       LIMIT 1""",
+                    (f"%{clean_name}%",)
+                )
+                row = cur.fetchone()
 
-        row = cur.fetchone()
         if row:
-            # Access by COLUMN NAME, not index
-            # Works with both RealDictCursor and regular cursor
             if isinstance(row, dict):
                 return {'chat_id': row['chat_id'], 'name': row['name']}
             else:
@@ -558,6 +594,40 @@ def update_teacher_group_assignment(group_name: str, new_chat_id: str, subject: 
         logger.info(f"✅ Group '{group_name}' now assigned to teacher {new_chat_id}")
     except Exception as e:
         logger.error(f"❌ Failed to update teacher group assignment: {e}")
+    finally:
+        cur.close()
+        conn.close()
+
+def cleanup_expired_keys(hours: int = 24):
+    """Delete users who registered a key but never activated within X hours."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        if Config.DATABASE_URL:
+            cur.execute("""
+                DELETE FROM users 
+                WHERE is_active = 0 
+                AND (chat_id IS NULL OR chat_id = '')
+                AND created_at < NOW() - INTERVAL '%s hours'
+            """, (hours,))
+        else:
+            cur.execute("""
+                DELETE FROM users 
+                WHERE is_active = 0 
+                AND (chat_id IS NULL OR chat_id = '')
+                AND created_at < datetime('now', ? || ' hours')
+            """, (f'-{hours}',))
+        
+        deleted = cur.rowcount
+        conn.commit()
+        
+        if deleted > 0:
+            logger.info(f"🧹 Cleaned up {deleted} expired registration(s)")
+        
+        return deleted
+    except Exception as e:
+        logger.error(f"❌ cleanup_expired_keys failed: {e}")
+        return 0
     finally:
         cur.close()
         conn.close()

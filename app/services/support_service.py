@@ -189,15 +189,11 @@ def get_available_slots(support_id: str) -> list:
     now = datetime.now(tz)
     slots = []
 
-    # Generate slots for next 7 days
-    day_names = [
-        'monday', 'tuesday', 'wednesday', 'thursday',
-        'friday', 'saturday', 'sunday'
-    ]
-
     for day_offset in range(7):
         check_date = now + timedelta(days=day_offset)
-        day_name = day_names[check_date.weekday()]
+        
+        # Use strftime instead of index lookup — impossible to crash!
+        day_name = check_date.strftime('%A').lower()
 
         # Is this day in the schedule?
         if day_name not in week_schedule:
@@ -210,8 +206,8 @@ def get_available_slots(support_id: str) -> list:
         date_str = check_date.strftime("%d-%m-%Y")
         display_date = check_date.strftime("%A %d %B")
 
-        # Get already booked slots for this date
-        booked = get_booked_slots(support_id, date_str)
+        # Get ALL booked sessions for overlap check
+        booked_sessions = get_booked_sessions(str(support_id), date_str)
 
         # Generate time blocks
         slot_time = check_date.replace(
@@ -223,14 +219,31 @@ def get_available_slots(support_id: str) -> list:
 
         while slot_time + timedelta(minutes=duration) <= end_time:
             time_str = slot_time.strftime("%H:%M")
+            slot_end = slot_time + timedelta(minutes=duration)
 
             # Skip if in the past
             if day_offset == 0 and slot_time <= now:
                 slot_time += timedelta(minutes=duration)
                 continue
 
-            # Skip if already booked
-            if time_str in booked:
+            # Skip if overlaps with any existing session
+            overlap_found = False
+            for sess in booked_sessions:
+                try:
+                    sess_start = datetime.strptime(
+                        f"{sess['date']} {sess['time']}", "%d-%m-%Y %H:%M"
+                    )
+                    sess_start = tz.localize(sess_start)
+                    sess_end = sess_start + timedelta(minutes=sess['duration'])
+
+                    if max(slot_time, sess_start) < min(slot_end, sess_end):
+                        overlap_found = True
+                        break
+                except Exception as e:
+                    logger.warning(f"⚠️ Bad session data: {sess} — {e}")
+                    continue
+
+            if overlap_found:
                 slot_time += timedelta(minutes=duration)
                 continue
 
@@ -243,5 +256,54 @@ def get_available_slots(support_id: str) -> list:
 
             slot_time += timedelta(minutes=duration)
 
-    logger.info(f"📅 Generated {len(slots)} available support slots")
+    logger.info(f"📅 Generated {len(slots)} non-overlapping support slots")
     return slots
+
+
+def get_booked_sessions(support_id: str, date_str: str) -> list:
+    """Get all bookings with their full time block."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        schedule = Config.load_support_schedule()
+        duration = schedule.get('session_duration_minutes', 30) if schedule else 30
+
+        if Config.DATABASE_URL:
+            cur.execute("""
+                SELECT booking_date, booking_time 
+                FROM support_bookings
+                WHERE support_chat_id = %s 
+                AND booking_date = %s
+                AND status = 'scheduled'
+            """, (str(support_id), date_str))
+        else:
+            cur.execute("""
+                SELECT booking_date, booking_time 
+                FROM support_bookings
+                WHERE support_chat_id = ?
+                AND booking_date = ?
+                AND status = 'scheduled'
+            """, (str(support_id), date_str))
+
+        rows = cur.fetchall()
+        sessions = []
+        for row in rows:
+            if isinstance(row, dict):
+                sessions.append({
+                    'date': row['booking_date'],
+                    'time': row['booking_time'],
+                    'duration': duration
+                })
+            else:
+                sessions.append({
+                    'date': row[0],
+                    'time': row[1],
+                    'duration': duration
+                })
+        return sessions
+    except Exception as e:
+        logger.error(f"❌ get_booked_sessions failed: {e}")
+        return []
+    finally:
+        cur.close()
+        conn.close()

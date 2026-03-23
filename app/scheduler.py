@@ -321,6 +321,13 @@ async def schedule_support_link(app, student_id, support_id, date_str, time_str)
 def create_job_args(app, meeting):
     return [app, dict(meeting)]
 
+async def job_cleanup_expired_keys():
+    """Daily cleanup of unactivated registrations."""
+    from app.services.user_service import cleanup_expired_keys
+    deleted = cleanup_expired_keys(hours=24)
+    if deleted > 0:
+        logger.info(f"🧹 Auto-cleanup removed {deleted} ghost user(s)")
+
 def start_scheduler(app: Application):
     """Initialize and start the scheduler."""
     tz = pytz.timezone(Config.TIMEZONE)
@@ -367,6 +374,24 @@ def start_scheduler(app: Application):
             id=f"{m['id']}_rec",
             replace_existing=True,
             misfire_grace_time=60
+        )
+
+        scheduler.add_job(
+            job_check_and_schedule_postponed, 'interval', 
+            minutes=30, args=[app, scheduler], 
+            id='check_postponed_interval', replace_existing=True
+        )
+        scheduler.add_job(
+            job_check_and_schedule_postponed, 'date', 
+            run_date=datetime.now(tz), args=[app, scheduler]
+        )
+    
+        # NEW: Daily cleanup at 3:00 AM
+        scheduler.add_job(
+            job_cleanup_expired_keys,
+            CronTrigger(hour=3, minute=0, timezone=tz),
+            id='cleanup_expired_keys',
+            replace_existing=True
         )
         
         print(f"   ✅ {m['title']}: Link @ {hour:02d}:{minute:02d}")

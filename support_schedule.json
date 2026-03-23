@@ -1,6 +1,6 @@
 {
   "session_duration_minutes": 30,
-  "max_bookings_per_week": 2,
+  "max_bookings_per_week": 3,
   "schedule": {
     "monday":    {"start": "16:00", "end": "21:00"},
     "tuesday":   {"start": "18:00", "end": "21:00"},

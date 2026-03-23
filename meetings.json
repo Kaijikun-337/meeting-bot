@@ -61,7 +61,7 @@
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Мухаммад",
       "duration_minutes": 60,
-      "teacher_name": "Ruslan",
+      "teacher_name": "Mr. Ruslan",
       "subject": "Английский",
       "group_name": "Group Mu",
       "schedule": {
@@ -225,13 +225,13 @@
       }
     },
     {
-      "id": "en_even_1900_group_kdm",
+      "id": "en_even_1900_group_kd",
       "title": "Английский язык",
-      "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Камрон, Даврон, Муслима",
+      "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Камрон, Даврон",
       "duration_minutes": 30,
       "teacher_name": "Sardor",
       "subject": "Английский",
-      "group_name": "Group K/D/M",
+      "group_name": "Group K/D",
       "schedule": {
         "days": ["saturday"],
         "hour": 19,

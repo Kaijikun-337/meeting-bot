@@ -262,6 +262,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group_name = session['selected_group']
     teacher_name = session.get('teacher_name', 'Teacher')
     files = session['files']
+    subject = session.get('subject')
     
     # Get students
     students = get_students_in_group(group_name)
@@ -294,12 +295,15 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             print(f"Failed to send homework to {student_chat_id}: {e}")
             failed_count += 1
     
+    # Inside confirm_send, after you have group_name
+    from app.config import Config
+    meetings = Config.load_meetings()
+    meeting = next((m for m in meetings if m.get('group_name') == group_name), None)
+    subject = meeting.get('subject', 'Unknown Subject') if meeting else 'Unknown'
+
     # --- PHASE 2: SEND TO SUPPORT STAFF ---
     try:
         from app.services.support_service import get_available_support_staff
-        from datetime import datetime
-        import pytz
-        from app.config import Config
         
         support = get_available_support_staff()
         
@@ -311,7 +315,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             now = datetime.now(tz)
             timestamp = now.strftime("%d-%m-%Y %H:%M")
             
-            # Build student list for the info message
+            # Build student list
             student_names = [s.get('name', 'Unknown') for s in students if s.get('name')]
             student_list = ", ".join(student_names) if student_names else "No students"
             
@@ -320,6 +324,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📚 <b>Homework Notification</b>\n\n"
                 f"👨‍🏫 Teacher: <b>{teacher_name}</b>\n"
                 f"👥 Group: <b>{group_name}</b>\n"
+                f"📘 Subject: <b>{subject}</b>\n"  # ✅ Now correct
                 f"👤 Students: {student_list}\n"
                 f"📎 Files: {len(files)}\n"
                 f"🕐 Sent at: {timestamp}\n"
@@ -340,9 +345,8 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except Exception as e:
         print(f"⚠️ Failed to send homework to support: {e}")
-        # Don't fail the whole operation if support notification fails
-    
-    # --- PHASE 3: CLEANUP ---
+        
+        # --- PHASE 3: CLEANUP ---
     del homework_sessions[chat_id]
     
     if failed_count > 0:
