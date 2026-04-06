@@ -1,7 +1,7 @@
 {
   "meetings": [
     {
-      "id": "math_group_mn",
+      "id": "math_mwfs_1900_group_mn",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Нормина, Мубина",
       "duration_minutes": 60,
@@ -15,7 +15,7 @@
       }
     },
     {
-      "id": "math_group_mn",
+      "id": "math_mwfs_1700_group_mn",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Нормина, Мубина",
       "duration_minutes": 60,
@@ -24,12 +24,12 @@
       "group_name": "Group M/N",
       "schedule": {
         "days": ["saturday"],
-        "hour": 11,
+        "hour": 17,
         "minute": 0
       }
     },
     {
-      "id": "math_group_mn",
+      "id": "math_mwfs_1900_group_mn",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Нормина, Мубина",
       "duration_minutes": 60,
@@ -43,7 +43,7 @@
       }
     },
     {
-      "id": "math_group_az",
+      "id": "math_twfs_2000_group_aziza",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Азиза",
       "duration_minutes": 60,
@@ -57,7 +57,7 @@
       }
     },
     {
-      "id": "math_group_az",
+      "id": "math_twfs_2000_group_aziza",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Азиза",
       "duration_minutes": 60,
@@ -71,7 +71,7 @@
       }
     },
     {
-      "id": "en_group_mu",
+      "id": "en_mttf_1500_group_mu",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Мухаммад",
       "duration_minutes": 60,
@@ -85,7 +85,7 @@
       }
     },
     {
-      "id": "en_group_mu",
+      "id": "en_mttf_1400_group_mu",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Мухаммад",
       "duration_minutes": 60,
@@ -99,7 +99,7 @@
       }
     },
     {
-      "id": "en_group_mu",
+      "id": "en_mttf_1400_group_mu",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Мухаммад",
       "duration_minutes": 60,
@@ -113,7 +113,7 @@
       }
     },
     {
-      "id": "en_group_sra",
+      "id": "en_mwfs_2030_group_sra",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Самир, Руслан, Амир",
       "duration_minutes": 60,
@@ -127,7 +127,7 @@
       }
     },
     {
-      "id": "en_group_sra",
+      "id": "en_mwfs_1400_group_sra",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Самир, Руслан, Амир",
       "duration_minutes": 60,
@@ -141,7 +141,7 @@
       }
     },
     {
-      "id": "en_group_sra",
+      "id": "en_mwfs_2030_group_sra",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Самир, Руслан, Амир",
       "duration_minutes": 60,
@@ -155,7 +155,7 @@
       }
     },
     {
-      "id": "math_group_kd",
+      "id": "math_twfs_1930_group_kd",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Камрон, Даврон",
       "duration_minutes": 60,
@@ -169,7 +169,7 @@
       }
     },
     {
-      "id": "math_group_kd",
+      "id": "math_twfs_1830_group_kd",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Камрон, Даврон",
       "duration_minutes": 60,
@@ -183,7 +183,7 @@
       }
     },
     {
-      "id": "en_group_kd",
+      "id": "en_mttf_1930_group_kd",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Камрон, Даврон",
       "duration_minutes": 60,
@@ -197,7 +197,7 @@
       }
     },
     {
-      "id": "en_group_kd",
+      "id": "en_mttf_1830_group_kd",
       "title": "Английский язык",
       "description": "Групповые занятия по Английскому. \n👨‍🎓 Ученики : Камрон, Даврон",
       "duration_minutes": 60,
@@ -211,7 +211,7 @@
       }
     },
     {
-      "id": "en_group_fe",
+      "id": "en_mttf_2130_group_fe",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Феруза",
       "duration_minutes": 60,
@@ -225,7 +225,7 @@
       }
     },
     {
-      "id": "en_group_fe",
+      "id": "en_mttf_2130_group_fe",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Феруза",
       "duration_minutes": 60,
@@ -239,7 +239,7 @@
       }
     },
     {
-      "id": "en_group_mi",
+      "id": "en_twfs_1830_group_mi",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Милена",
       "duration_minutes": 60,
@@ -253,7 +253,7 @@
       }
     },
     {
-      "id": "en_group_mi",
+      "id": "en_twfs_1930_group_mi",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Милена",
       "duration_minutes": 60,
@@ -267,7 +267,7 @@
       }
     },
     {
-      "id": "en_group_mi",
+      "id": "en_twfs_1200_group_mi",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Милена",
       "duration_minutes": 60,
@@ -281,7 +281,7 @@
       }
     },
     {
-      "id": "en_group_be",
+      "id": "en_mttf_1830_group_be",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Бехруз",
       "duration_minutes": 60,
@@ -295,7 +295,7 @@
       }
     },
     {
-      "id": "en_group_be",
+      "id": "en_mttf_1930_group_be",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Бехруз",
       "duration_minutes": 60,
@@ -309,7 +309,21 @@
       }
     },
     {
-      "id": "math_group_ma",
+      "id": "math_mwf_2130_group_ma",
+      "title": "Математика",
+      "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Макар",
+      "duration_minutes": 60,
+      "teacher_name": "Amir",
+      "subject": "Математика",
+      "group_name": "Group Ma",
+      "schedule": {
+        "days": ["monday"],
+        "hour": 21,
+        "minute": 30
+      }
+    },
+    {
+      "id": "math_mwf_2130_group_ma",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Макар",
       "duration_minutes": 60,
@@ -317,13 +331,13 @@
       "subject": "Математика",
       "group_name": "Group Ma",
       "schedule": {
-        "days": ["monday", "wednesday"],
-        "hour": 22,
+        "days": ["wednesday", "friday"],
+        "hour": 21,
         "minute": 30
       }
     },
     {
-      "id": "math_group_mu",
+      "id": "math_mttf_2000_group_mu",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Муслима",
       "duration_minutes": 60,
@@ -337,7 +351,7 @@
       }
     },
     {
-      "id": "math_group_mu",
+      "id": "math_mttf_2000_group_mu",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Муслима",
       "duration_minutes": 60,
