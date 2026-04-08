@@ -12,8 +12,6 @@ def generate_registration_key(role: str) -> str:
     """Generate unique registration key."""
     if role == "teacher":
         prefix = "TCH"
-    elif role == "support":
-        prefix = "SUP"
     else:
         prefix = "STU"
     chars = string.ascii_uppercase + string.digits

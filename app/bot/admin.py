@@ -26,7 +26,6 @@ from app.services.attendance_service import get_student_attendance_stats
 ENTERING_NAME_STUDENT = 20
 ENTERING_GROUP_STUDENT = 21
 ENTERING_NAME_TEACHER = 22
-ENTERING_NAME_SUPPORT = 24
 
 # Edit/Delete States
 (
@@ -154,7 +153,7 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     text = "👥 <b>Registered Users</b>\n\n"
     
     for u in users:
-        icon = "👨‍🏫" if u['role'] == 'teacher' else "🛠" if u['role'] == 'support' else "👨‍🎓"
+        icon = "👨‍🏫" if u['role'] == 'teacher' else "👨‍🎓"
         group = f" ({u['group_name']})" if u['group_name'] else ""
         text += f"{icon} <b>{u['name']}</b>{group}\n"
         text += f"🆔 <code>{u['chat_id']}</code>\n\n"
@@ -204,8 +203,6 @@ async def delete_user_chat_entered(update: Update, context: ContextTypes.DEFAULT
     
     if user['role'] == 'teacher':
         role_label = get_text('role_teacher', lang)
-    elif user['role'] == 'support':
-        role_label = get_text('role_support', lang)
     else:
         role_label = get_text('role_student', lang)
     

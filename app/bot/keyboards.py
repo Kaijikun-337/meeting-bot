@@ -11,7 +11,7 @@ from app.utils.localization import get_text, get_user_language
 # MAIN MENU (Reply Keyboard)
 # ═══════════════════════════════════════════════════════════
 
-def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: str = 'en', is_support: bool = False):
+def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: str = 'en'):
     """Persistent main menu keyboard - localized."""
     
     if is_admin:
@@ -29,10 +29,9 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
             [KeyboardButton(get_text('btn_language', lang)), KeyboardButton(get_text('btn_help', lang))]
         ]
     else:
-        # Student menu — NO payment, NO change lesson
+        # Student menu
         keyboard = [
             [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
-            [KeyboardButton(get_text('btn_book_support', lang))],
             [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_language', lang))],
             [KeyboardButton(get_text('btn_help', lang))]
         ]
@@ -163,22 +162,6 @@ def schedule_keyboard_localized(chat_id: str):
     return schedule_keyboard(lang)
 
 
-
-# ═══════════════════════════════════════════════════════════
-# PAYMENT KEYBOARDS
-# ═══════════════════════════════════════════════════════════
-
-def payment_confirm_keyboard(lang: str = 'en'):
-    """Submit or cancel payment."""
-    keyboard = [
-        [
-            InlineKeyboardButton(get_text('btn_submit', lang), callback_data="payment_submit"),
-            InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="payment_cancel")
-        ]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
 # ═══════════════════════════════════════════════════════════
 # LANGUAGE KEYBOARD
 # ═══════════════════════════════════════════════════════════
@@ -211,39 +194,3 @@ def confirm_keyboard_localized(lang: str = 'en'):
             InlineKeyboardButton(get_text('btn_no', lang), callback_data="confirm_no")
         ]
     ])
-
-def reschedule_dates_keyboard(available_dates: list, lang: str = 'en'):
-    """Keyboard for selecting a new date."""
-    keyboard = []
-    
-    # available_dates is list of {'date': 'dd-mm-yyyy', 'display': '...', ...}
-    for day in available_dates:
-        # Format: "📅 Mon 12 Oct"
-        btn_text = f"📅 {day['display']}"
-        callback = f"resched_date_{day['date']}"
-        keyboard.append([InlineKeyboardButton(btn_text, callback_data=callback)])
-        
-    keyboard.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
-    return InlineKeyboardMarkup(keyboard)
-
-def reschedule_times_keyboard(slots: list, date_str: str, lang: str = 'en'):
-    """Keyboard for selecting a time slot."""
-    keyboard = []
-    
-    # Slots are strings "10:00", "10:30"
-    # We want 2 or 3 per row to look nice
-    row = []
-    for time_str in slots:
-        callback = f"reschedule_{time_str}_{date_str}"
-        row.append(InlineKeyboardButton(time_str, callback_data=callback))
-        
-        if len(row) == 3:
-            keyboard.append(row)
-            row = []
-            
-    if row:
-        keyboard.append(row)
-        
-    # Back button
-    keyboard.append([InlineKeyboardButton(get_text('btn_back', lang), callback_data="resched_back")])
-    return InlineKeyboardMarkup(keyboard)

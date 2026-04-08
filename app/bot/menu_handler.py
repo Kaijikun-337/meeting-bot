@@ -1,7 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from app.config import Config
-from app.bot.support import handle_book_support
 from app.utils.localization import get_text
 
 
@@ -20,9 +19,9 @@ def is_button(text: str, button_key: str) -> bool:
 def is_menu_button(text: str) -> bool:
     """Check if text is any menu button in any language."""
     button_keys = [
-        'btn_schedule', 'btn_today', 'btn_change_lesson', 'btn_pay',
+        'btn_schedule', 'btn_today', 'btn_pay',
         'btn_status', 'btn_help', 'btn_new_student', 'btn_new_teacher',
-        'btn_users', 'btn_language', 'btn_availability', 'btn_homework'  # ← Added
+        'btn_users', 'btn_language', 'btn_homework'  # ← Added
     ]
     
     for key in button_keys:
@@ -45,7 +44,6 @@ async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
     from app.bot.handlers import status_command, help_command
     from app.bot.admin import list_users_command, new_student_command, new_teacher_command
     from app.bot.language import language_command
-    from app.bot.availability import availability_command
     
     # Route to correct handler based on button key
     if is_button(text, 'btn_schedule'):
@@ -63,15 +61,7 @@ async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
     elif is_button(text, 'btn_users') and is_admin(chat_id):
         return await list_users_command(update, context)
     
-    elif is_button(text, 'btn_change_lesson'):
-        # Let ConversationHandler handle this
-        return None
-    
     elif is_button(text, 'btn_pay'):
-        # Let ConversationHandler handle this
-        return None
-    
-    elif is_button(text, 'btn_availability'):
         # Let ConversationHandler handle this
         return None
 
@@ -87,9 +77,6 @@ async def handle_menu_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     elif is_button(text, 'btn_language'):
         return await language_command(update, context)
-    
-    elif text in [get_text('btn_book_support', 'en'), get_text('btn_book_support', 'ru'), get_text('btn_book_support', 'uz')]:
-        await handle_book_support(update, context)
     
     return None
 

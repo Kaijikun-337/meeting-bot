@@ -163,21 +163,7 @@ def init_database():
         )
     """)
     
-    # 7. Payments Cache
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS payments_cache (
-            id {pk_type},
-            student_name TEXT NOT NULL,
-            subject TEXT NOT NULL,
-            teacher TEXT NOT NULL,
-            group_name TEXT,
-            amount REAL NOT NULL,
-            status TEXT DEFAULT 'confirmed',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-        # 8. Attendance Log
+    # 8. Attendance Log
     # Stores the status of every student for every lesson instance
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS attendance_log (

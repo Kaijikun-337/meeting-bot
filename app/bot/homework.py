@@ -246,7 +246,7 @@ async def select_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Send homework to all students in the group AND to support staff."""
+    """Send homework to all students in the group"""
     query = update.callback_query
     
     chat_id = str(update.effective_user.id)
@@ -300,53 +300,8 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     meetings = Config.load_meetings()
     meeting = next((m for m in meetings if m.get('group_name') == group_name), None)
     subject = meeting.get('subject', 'Unknown Subject') if meeting else 'Unknown'
-
-    # --- PHASE 2: SEND TO SUPPORT STAFF ---
-    try:
-        from app.services.support_service import get_available_support_staff
         
-        support = get_available_support_staff()
-        
-        if support and support.get('chat_id'):
-            support_id = support['chat_id']
-            support_lang = get_user_language(str(support_id))
-            
-            tz = pytz.timezone(Config.TIMEZONE)
-            now = datetime.now(tz)
-            timestamp = now.strftime("%d-%m-%Y %H:%M")
-            
-            # Build student list
-            student_names = [s.get('name', 'Unknown') for s in students if s.get('name')]
-            student_list = ", ".join(student_names) if student_names else "No students"
-            
-            # Rich info message for support
-            support_header = (
-                f"📚 <b>Homework Notification</b>\n\n"
-                f"👨‍🏫 Teacher: <b>{teacher_name}</b>\n"
-                f"👥 Group: <b>{group_name}</b>\n"
-                f"📘 Subject: <b>{subject}</b>\n"  # ✅ Now correct
-                f"👤 Students: {student_list}\n"
-                f"📎 Files: {len(files)}\n"
-                f"🕐 Sent at: {timestamp}\n"
-                f"{'─' * 30}"
-            )
-            
-            await context.bot.send_message(
-                chat_id=support_id,
-                text=support_header,
-                parse_mode="HTML"
-            )
-            
-            # Send the actual files
-            for file_info in files:
-                await _send_file(context.bot, support_id, file_info)
-            
-            print(f"✅ Homework copy sent to support: {support['name']}")
-            
-    except Exception as e:
-        print(f"⚠️ Failed to send homework to support: {e}")
-        
-        # --- PHASE 3: CLEANUP ---
+    # --- PHASE 2: CLEANUP ---
     del homework_sessions[chat_id]
     
     if failed_count > 0:

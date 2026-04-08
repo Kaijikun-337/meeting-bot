@@ -46,11 +46,9 @@ async def language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif user:
         # ✅ NEW: Handle all three roles
         is_teacher = (user['role'] == 'teacher')
-        is_support = (user['role'] == 'support')
         kb = main_menu_keyboard(
             is_admin=False, 
-            is_teacher=is_teacher, 
-            is_support=is_support, 
+            is_teacher=is_teacher,
             lang=new_lang
         )
     else:

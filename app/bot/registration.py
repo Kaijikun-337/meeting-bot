@@ -27,14 +27,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if is_registered(chat_id):
         user = get_user(chat_id)
         is_teacher = (user['role'] == 'teacher')
-        is_support = (user['role'] == 'support')
         await update.message.reply_text(
             get_text('already_registered', lang),
             parse_mode='HTML',
             reply_markup=main_menu_keyboard(
                 is_admin=False, 
-                is_teacher=is_teacher, 
-                is_support=is_support, 
+                is_teacher=is_teacher,
                 lang=lang
             )
         )
@@ -121,12 +119,10 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ NEW: Handle all three roles properly
     if role == 'teacher':
         role_text = get_text('role_teacher', lang)
-    elif role == 'support':
-        role_text = get_text('role_support', lang)
     else:
         role_text = get_text('role_student', lang)
 
-    role_icon = "🛠" if role == "support" else ("👨‍🏫" if role == "teacher" else "👨‍🎓")
+    role_icon =("👨‍🏫" if role == "teacher" else "👨‍🎓")
 
     group_text = f"\n{get_text('status_group', lang)}: {group}" if group else ""
 
@@ -138,15 +134,13 @@ async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     is_teacher = (role == 'teacher')
-    is_support = (role == 'support')
 
     await update.message.reply_text(
         msg,
         parse_mode='HTML',
         reply_markup=main_menu_keyboard(
             is_admin=False, 
-            is_teacher=is_teacher, 
-            is_support=is_support, 
+            is_teacher=is_teacher,
             lang=lang
         )
     )

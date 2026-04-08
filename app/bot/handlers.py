@@ -10,11 +10,6 @@ from app.bot.registration import (
 from app.bot.schedule import (
     schedule_command, schedule_navigation, today_command
 )
-from app.bot.payment import (
-    pay_command, course_selected, amount_entered, photo_uploaded,
-    payment_confirm, admin_payment_decision, cancel_payment,
-    SELECTING_COURSE, ENTERING_AMOUNT, UPLOADING_PHOTO, CONFIRMING as PAYMENT_CONFIRMING
-)
 from app.bot.admin import (
     new_student_command, new_teacher_command, name_entered_admin,
     group_entered_admin, list_users_command, cancel_admin,
@@ -89,12 +84,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ✅ Handle all three roles
     if user['role'] == 'teacher':
         role_key = 'role_teacher'
-    elif user['role'] == 'support':
-        role_key = 'role_support'
     else:
         role_key = 'role_student'
     
-    role_icon = "🛠" if user['role'] == 'support' else ("👨‍🏫" if user['role'] == 'teacher' else "👨‍🎓")
+    role_icon = ("👨‍🏫" if user['role'] == 'teacher' else "👨‍🎓")
     
     lines = [
         f"<b>{get_text('your_status', lang)}</b>",
@@ -115,10 +108,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif user['role'] == 'student':
         if user.get('group_name'):
             lines.append(f"👥 {get_text('status_group', lang)}: {user['group_name']}")
-    
-    # Support-specific info
-    elif user['role'] == 'support':
-        lines.append(f"📋 Role: Academic Support Staff")
     
     # Registration date (all roles)
     if user.get('activated_at'):
@@ -148,11 +137,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "",
         get_text('help_schedule', lang),
         get_text('help_today', lang),
-        get_text('help_change', lang),
         get_text('help_pay', lang),
         get_text('help_status', lang),
         get_text('help_language', lang),
-        get_text('help_availability', lang),
     ]
     
     await update.message.reply_text(
@@ -216,22 +203,6 @@ def register_handlers(app: Application):
         per_message=False
     )
     
-    # Payment conversation
-    payment_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('pay', pay_command),
-            MessageHandler(pay_button, pay_command)
-        ],
-        states={
-            SELECTING_COURSE: [CallbackQueryHandler(course_selected, pattern=r'^(course_|payment_)')],
-            ENTERING_AMOUNT: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, amount_entered)],
-            UPLOADING_PHOTO: [MessageHandler(filters.PHOTO, photo_uploaded)],
-            PAYMENT_CONFIRMING: [CallbackQueryHandler(payment_confirm, pattern=r'^payment_')]
-        },
-        fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_payment)],
-        per_message=False
-    )
-    
     edit_student_handler = ConversationHandler(
         entry_points=[CommandHandler('edit_student', edit_student_command)],
         states={
@@ -289,7 +260,6 @@ def register_handlers(app: Application):
     app.add_handler(registration_handler)
     app.add_handler(new_student_handler)
     app.add_handler(new_teacher_handler)
-    app.add_handler(payment_handler)
     app.add_handler(get_homework_conversation_handler())
     app.add_handler(edit_student_handler)
     app.add_handler(edit_teacher_handler)
@@ -308,7 +278,6 @@ def register_handlers(app: Application):
     
     # Callback handlers
     app.add_handler(CallbackQueryHandler(schedule_navigation, pattern=r'^schedule_'))
-    app.add_handler(CallbackQueryHandler(admin_payment_decision, pattern=r'^admin_(confirm|reject)_'))
     app.add_handler(CallbackQueryHandler(start_attendance, pattern=r"^attend_"))
     app.add_handler(CallbackQueryHandler(toggle_student, pattern=r"^att_toggle_"))
     app.add_handler(CallbackQueryHandler(submit_attendance, pattern=r"^att_submit"))
