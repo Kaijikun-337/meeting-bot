@@ -2,8 +2,7 @@ from telegram import (
     InlineKeyboardButton, 
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
-    KeyboardButton,
-    ReplyKeyboardRemove  # 🟢 ADDED THIS IMPORT
+    KeyboardButton
 )
 from app.utils.localization import get_text, get_user_language
 
@@ -19,21 +18,15 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
         keyboard = [
             [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
             [KeyboardButton(get_text('btn_new_student', lang)), KeyboardButton(get_text('btn_new_teacher', lang))],
-            [KeyboardButton(get_text('btn_users', lang)), KeyboardButton(get_text('btn_academic_support', lang))],
+            [KeyboardButton(get_text('btn_users', lang))],
             [KeyboardButton(get_text('btn_language', lang)), KeyboardButton(get_text('btn_help', lang))]
         ]
     elif is_teacher:
         keyboard = [
             [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
-            [KeyboardButton(get_text('btn_change_lesson', lang)), KeyboardButton(get_text('btn_homework', lang))],
-            [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_availability', lang))],
+            [KeyboardButton(get_text('btn_homework', lang))],
+            [KeyboardButton(get_text('btn_status', lang))],
             [KeyboardButton(get_text('btn_language', lang)), KeyboardButton(get_text('btn_help', lang))]
-        ]
-    elif is_support:
-        keyboard = [
-            [KeyboardButton(get_text('btn_schedule', lang)), KeyboardButton(get_text('btn_today', lang))],
-            [KeyboardButton(get_text('btn_status', lang)), KeyboardButton(get_text('btn_language', lang))],
-            [KeyboardButton(get_text('btn_help', lang))]
         ]
     else:
         # Student menu — NO payment, NO change lesson
@@ -56,16 +49,13 @@ def get_menu_buttons(lang: str = 'en') -> list:
     return [
         get_text('btn_schedule', lang),
         get_text('btn_today', lang),
-        get_text('btn_change_lesson', lang),
         get_text('btn_pay', lang),
         get_text('btn_status', lang),
         get_text('btn_help', lang),
         get_text('btn_new_student', lang),
         get_text('btn_new_teacher', lang),
         get_text('btn_users', lang),
-        get_text('btn_language', lang),
-        get_text('btn_academic_support', lang),  # 🟢 ADDED TO WHITELIST
-        get_text('btn_book_support', lang)       # 🟢 ADDED TO WHITELIST
+        get_text('btn_language', lang)
     ]
 
 
@@ -80,20 +70,20 @@ def get_all_menu_buttons() -> list:
 # Legacy - keep for backward compatibility and menu_button_filter
 MENU_BUTTONS = [
     # English
-    "📅 Schedule", "📅 Today", "✏️ Change Lesson", "💰 Pay",
+    "📅 Schedule", "📅 Today", "💰 Pay",
     "📋 Status", "❓ Help", "👤 New Student", "👤 New Teacher", 
-    "👥 Users", "🌐 Language", "📅 Availability", "📚 Homework",
-    "🧑‍🏫 Academic Support", "🆘 Book lesson with support", # 🟢 ADDED
+    "👥 Users", "🌐 Language", "📚 Homework",
+    
     # Russian
-    "📅 Расписание", "📅 Сегодня", "✏️ Изменить урок", "💰 Оплата",
+    "📅 Расписание", "📅 Сегодня", "💰 Оплата",
     "📋 Статус", "❓ Помощь", "👤 Новый ученик", "👤 Новый учитель",
-    "👥 Пользователи", "🌐 Язык", "📅 Доступность", "📚 Домашнее задание",
-    "🧑‍🏫 Академическая поддержка", "🆘 Записаться на поддержку", # 🟢 ADDED
+    "👥 Пользователи", "🌐 Язык", "📚 Домашнее задание",
+    
     # Uzbek
-    "📅 Jadval", "📅 Bugun", "✏️ Darsni o'zgartirish", "💰 To'lov",
+    "📅 Jadval", "📅 Bugun", "💰 To'lov",
     "📋 Holat", "❓ Yordam", "👤 Yangi o'quvchi", "👤 Yangi o'qituvchi",
-    "👥 Foydalanuvchilar", "🌐 Til", "📅 Bo'sh vaqt", "📚 Uy vazifasi",
-    "🧑‍🏫 Akademik yordam", "🆘 Yordam darsiga yozilish" # 🟢 ADDED
+    "👥 Foydalanuvchilar", "🌐 Til", "📚 Uy vazifasi",
+    
 ]
 
 # ═══════════════════════════════════════════════════════════
@@ -118,81 +108,6 @@ def groups_keyboard(groups: list, lang: str = 'en'):
             callback_data=f"group_{group}"
         )])
     keyboard.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-# ═══════════════════════════════════════════════════════════
-# CHANGE LESSON KEYBOARDS
-# ═══════════════════════════════════════════════════════════
-
-def change_type_keyboard(lang: str = 'en'):
-    """Postpone or cancel."""
-    keyboard = [
-        [InlineKeyboardButton(get_text('postpone', lang), callback_data="change_postpone")],
-        [InlineKeyboardButton(get_text('cancel_lesson', lang), callback_data="change_cancel")]
-    ]
-    return InlineKeyboardMarkup(keyboard)
-
-
-def lessons_keyboard(lessons: list, lang: str = 'en'):
-    """Select a lesson date."""
-    keyboard = []
-    for lesson in lessons:
-        hour = lesson['hour']
-        minute = lesson['minute']
-        
-        if lesson['status'] == 'postponed':
-            text = f"📅 {lesson['day_name']} {lesson['date']} → {lesson['new_date']} {hour:02d}:{minute:02d}"
-        else:
-            text = f"📚 {lesson['day_name']} {lesson['date']} {hour:02d}:{minute:02d}"
-        
-        keyboard.append([InlineKeyboardButton(
-            text,
-            callback_data=f"lesson_{lesson['date']}"
-        )])
-    
-    if not keyboard:
-        keyboard.append([InlineKeyboardButton(get_text('no_lessons_to_change', lang), callback_data="no_lessons")])
-    
-    keyboard.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def days_keyboard(lang: str = 'en'):
-    """Select a day for postponement."""
-    day_keys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-    keyboard = []
-    for day_key in day_keys:
-        day_name = get_text(day_key, lang)
-        keyboard.append([InlineKeyboardButton(day_name, callback_data=f"newday_{day_key}")])
-    keyboard.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def hours_keyboard(lang: str = 'en'):
-    """Select hour."""
-    keyboard = []
-    row = []
-    for hour in range(8, 22):
-        row.append(InlineKeyboardButton(f"{hour:02d}", callback_data=f"hour_{hour}"))
-        if len(row) == 4:
-            keyboard.append(row)
-            row = []
-    if row:
-        keyboard.append(row)
-    keyboard.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def minutes_keyboard(lang: str = 'en'):
-    """Select minutes."""
-    keyboard = [
-        [
-            InlineKeyboardButton("00", callback_data="minute_0"),
-            InlineKeyboardButton("30", callback_data="minute_30")
-        ],
-        [InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")]
-    ]
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -247,156 +162,6 @@ def schedule_keyboard_localized(chat_id: str):
     lang = get_user_language(chat_id)
     return schedule_keyboard(lang)
 
-
-# ═══════════════════════════════════════════════════════════
-# AVAILABILITY KEYBOARDS
-# ═══════════════════════════════════════════════════════════
-
-def availability_days_keyboard(days_list: list, lang: str = 'en'):
-    """Select a day to set availability."""
-    buttons = []
-    
-    for day in days_list:
-        buttons.append([
-            InlineKeyboardButton(
-                f"📅 {day['display']}", 
-                callback_data=f"avail_day_{day['date_str']}"
-            )
-        ])
-    
-    buttons.append([InlineKeyboardButton(get_text('view_schedule', lang), callback_data="avail_view")])
-    buttons.append([InlineKeyboardButton(get_text('clear_all', lang), callback_data="avail_clear_all")])
-    buttons.append([InlineKeyboardButton(get_text('btn_close', lang), callback_data="avail_close")])
-    
-    return InlineKeyboardMarkup(buttons)
-
-
-def availability_start_hour_keyboard(start_hour: int = 8, end_hour: int = 21, lang: str = 'en'):
-    """Select start hour for availability."""
-    buttons = []
-    row = []
-    
-    for hour in range(start_hour, end_hour):
-        row.append(InlineKeyboardButton(f"{hour:02d}:00", callback_data=f"avail_start_{hour}"))
-        if len(row) == 4:
-            buttons.append(row)
-            row = []
-    
-    if row:
-        buttons.append(row)
-    
-    buttons.append([InlineKeyboardButton(get_text('btn_back', lang), callback_data="avail_back")])
-    
-    return InlineKeyboardMarkup(buttons)
-
-
-def availability_end_hour_keyboard(after_hour: int, max_hour: int = 22, lang: str = 'en'):
-    """Select end hour for availability (must be after start)."""
-    buttons = []
-    row = []
-    
-    for hour in range(after_hour + 1, max_hour):
-        row.append(InlineKeyboardButton(f"{hour:02d}:00", callback_data=f"avail_end_{hour}"))
-        if len(row) == 4:
-            buttons.append(row)
-            row = []
-    
-    if row:
-        buttons.append(row)
-    
-    buttons.append([InlineKeyboardButton(get_text('btn_back', lang), callback_data="avail_back")])
-    
-    return InlineKeyboardMarkup(buttons)
-
-
-def availability_view_keyboard(availability_list: list, lang: str = 'en'):
-    """View current availability with remove buttons."""
-    buttons = []
-    
-    for entry in availability_list:
-        buttons.append([
-            InlineKeyboardButton(
-                f"🗑 {get_text('remove', lang)} {entry['display']}",
-                callback_data=f"avail_remove_{entry['date']}"
-            )
-        ])
-    
-    buttons.append([InlineKeyboardButton(get_text('add_more', lang), callback_data="avail_add_more")])
-    buttons.append([InlineKeyboardButton(get_text('btn_close', lang), callback_data="avail_close")])
-    
-    return InlineKeyboardMarkup(buttons)
-
-
-# ═══════════════════════════════════════════════════════════
-# RESCHEDULE SLOTS KEYBOARD
-# ═══════════════════════════════════════════════════════════
-
-def reschedule_dates_keyboard(slots: list, lang: str = 'en'):
-    """Step 1: Show unique dates available for rescheduling."""
-    buttons = []
-    
-    # Extract unique dates while preserving order
-    seen_dates = set()
-    unique_entries = []
-    
-    for slot in slots:
-        if slot['date'] not in seen_dates:
-            seen_dates.add(slot['date'])
-            unique_entries.append(slot)
-    
-    # Create buttons for dates (displaying "Mon 29 Jan")
-    for entry in unique_entries:
-        # Extract just the date part from the display string (hacky but works if format is consistent)
-        # Or better: use the 'date' value and formatting
-        # entry['display'] looks like "Thu 29 Jan at 10:00"
-        # We want just "Thu 29 Jan"
-        display_date = entry['display'].split(' at ')[0]
-        
-        buttons.append([
-            InlineKeyboardButton(
-                f"📅 {display_date}",
-                callback_data=f"resched_date_{entry['date']}"
-            )
-        ])
-    
-    if not buttons:
-        buttons.append([InlineKeyboardButton(get_text('no_available_slots', lang), callback_data="no_slots")])
-    
-    buttons.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
-    
-    return InlineKeyboardMarkup(buttons)
-
-
-def reschedule_times_keyboard(slots: list, selected_date: str, lang: str = 'en'):
-    """Step 2: Show times for the selected date."""
-    buttons = []
-    
-    # Filter slots for this date
-    day_slots = [s for s in slots if s['date'] == selected_date]
-    
-    # Create grid of time buttons (3 per row)
-    row = []
-    for slot in day_slots:
-        # slot['hour'] = 14, slot['minute'] = 30
-        time_str = f"{slot['hour']:02d}:{slot['minute']:02d}"
-        
-        row.append(InlineKeyboardButton(
-            time_str,
-            callback_data=f"reschedule_{slot['date']}_{slot['hour']}_{slot['minute']}"
-        ))
-        
-        if len(row) == 3:
-            buttons.append(row)
-            row = []
-            
-    if row:
-        buttons.append(row)
-    
-    # Navigation buttons
-    buttons.append([InlineKeyboardButton(get_text('back_to_dates', lang), callback_data="resched_back")])
-    buttons.append([InlineKeyboardButton(get_text('btn_cancel', lang), callback_data="cancel_action")])
-    
-    return InlineKeyboardMarkup(buttons)
 
 
 # ═══════════════════════════════════════════════════════════

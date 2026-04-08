@@ -151,27 +151,6 @@ def init_database():
         )
     """)
     
-    # 4. Change Requests
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS change_requests (
-            id {pk_type},
-            request_id TEXT UNIQUE, 
-            meeting_id TEXT NOT NULL,
-            requester_chat_id TEXT NOT NULL,
-            requester_role TEXT,
-            change_type TEXT NOT NULL,
-            original_date TEXT NOT NULL,
-            new_date TEXT,
-            new_hour INTEGER,
-            new_minute INTEGER,
-            status TEXT DEFAULT 'pending',
-            approvals_needed INTEGER DEFAULT 1,
-            approvals_received INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP
-        )
-    """)
-    
     # 5. Approvals
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS approvals (
@@ -181,22 +160,6 @@ def init_database():
             approved INTEGER NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(request_id, approver_chat_id)
-        )
-    """)
-    
-    # 6. Lesson Overrides (Restored your specific columns)
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS lesson_overrides (
-            id {pk_type},
-            meeting_id TEXT NOT NULL,
-            original_date TEXT NOT NULL,
-            override_type TEXT,
-            new_date TEXT,
-            new_hour INTEGER,
-            new_minute INTEGER,
-            status TEXT, 
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(meeting_id, original_date)
         )
     """)
     
@@ -213,21 +176,8 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-
-    # 8. Teacher Availability
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS teacher_availability (
-            id {pk_type},
-            teacher_chat_id TEXT NOT NULL,
-            available_date TEXT NOT NULL,
-            start_hour INTEGER NOT NULL,
-            end_hour INTEGER NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(teacher_chat_id, available_date)
-        )
-    """)
     
-        # 9. Attendance Log
+        # 8. Attendance Log
     # Stores the status of every student for every lesson instance
     cursor.execute(f"""
         CREATE TABLE IF NOT EXISTS attendance_log (
@@ -240,27 +190,6 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(meeting_id, date, student_chat_id)
         )
-    """)
-    
-    # Replace your old support_bookings table with this
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS support_bookings (
-            id {pk_type},
-            student_chat_id TEXT NOT NULL,
-            support_chat_id TEXT NOT NULL,
-            booking_date TEXT NOT NULL,
-            booking_time TEXT NOT NULL,
-            jitsi_link TEXT,
-            week_start TEXT NOT NULL,
-            status TEXT DEFAULT 'scheduled',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    # Let's also add an index to make the "2 per week" check super fast
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS idx_support_student 
-        ON support_bookings(student_chat_id)
     """)
 
     # --- AUTO-FIX FOR LOCAL SQLITE ---

@@ -83,20 +83,6 @@ async def new_teacher_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     )
     return ENTERING_NAME_TEACHER
 
-async def new_support_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /new_support command (admin only)."""
-    chat_id = str(update.effective_chat.id)
-    if not is_admin(chat_id):
-        return ConversationHandler.END
-    
-    context.user_data['new_user'] = {'role': 'support'}
-    await update.message.reply_text(
-        "🛠 <b>New Academic Support Registration</b>\n\n"
-        "Enter the staff member's <b>full name</b>:",
-        parse_mode='HTML'
-    )
-    return ENTERING_NAME_SUPPORT
-
 async def name_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip()
     if 'new_user' not in context.user_data:
@@ -121,14 +107,6 @@ async def name_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
         else:
             await update.message.reply_text("❌ Error creating teacher.")
-        return ConversationHandler.END
-
-    elif role == 'support':
-        key = create_pending_user(name, 'support')
-        await update.message.reply_text(
-            f"✅ <b>Support Created!</b>\n\nName: {name}\n🔑 Key: <code>{key}</code>",
-            parse_mode='HTML'
-        )
         return ConversationHandler.END
 
 async def group_entered_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):

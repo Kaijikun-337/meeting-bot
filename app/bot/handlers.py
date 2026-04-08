@@ -7,13 +7,6 @@ from app.bot.registration import (
     start_command, key_entered, cancel_registration,
     ENTERING_KEY
 )
-from app.bot.change_lesson import (
-    change_command, lesson_selected, change_type_selected,
-    confirm_action, handle_approval, cancel_change, slot_selected,
-    date_selected, back_to_dates,
-    SELECTING_LESSON, SELECTING_CHANGE_TYPE, 
-    CONFIRMING, SELECTING_NEW_DATE, SELECTING_NEW_TIME
-)
 from app.bot.schedule import (
     schedule_command, schedule_navigation, today_command
 )
@@ -28,38 +21,28 @@ from app.bot.admin import (
     delete_user_command, delete_user_chat_entered, delete_user_confirm,
     edit_student_command, edit_user_chat_entered, edit_student_name, edit_student_group,
     edit_teacher_command, edit_teacher_chat_entered, edit_teacher_name_step,
-    edit_teacher_group_step, edit_teacher_subject_step, new_support_command,
+    edit_teacher_group_step, edit_teacher_subject_step,
     ENTERING_GROUP as ADMIN_ENTERING_GROUP,
     EDIT_USER_CHAT, EDIT_STUDENT_NAME, EDIT_STUDENT_GROUP,
     EDIT_TEACHER_NAME, EDIT_TEACHER_GROUP, EDIT_TEACHER_SUBJECT,
     DELETE_USER_CHAT, DELETE_USER_CONFIRM, ENTERING_NAME_STUDENT,
-    ENTERING_NAME_TEACHER, ENTERING_NAME_SUPPORT
+    ENTERING_NAME_TEACHER
 )
 
 from app.bot.menu_handler import handle_menu_buttons, cancel_on_menu_button, is_button
 from app.bot.keyboards import MENU_BUTTONS
 from app.services.user_service import get_user, get_teacher_groups
 from app.config import Config
-from app.bot.availability import get_availability_conversation_handler
 from app.bot.language import register_language_handlers
 from app.bot.error_handler import error_handler
 from app.utils.localization import get_text, get_user_language
 from app.bot.homework import get_homework_conversation_handler
-from app.bot.change_lesson import handle_approval
 from app.bot.attendance import start_attendance, toggle_student, submit_attendance
 from app.bot.admin import check_attendance_command
 
 # ═══════════════════════════════════════════════════════════
 # MULTILINGUAL BUTTON FILTERS
 # ═══════════════════════════════════════════════════════════
-
-class ChangeLessonButtonFilter(filters.MessageFilter):
-    """Matches Change Lesson button in any language."""
-    def filter(self, message):
-        if message.text:
-            return is_button(message.text, 'btn_change_lesson')
-        return False
-
 
 class PayButtonFilter(filters.MessageFilter):
     """Matches Pay button in any language."""
@@ -75,19 +58,9 @@ class StatusButtonFilter(filters.MessageFilter):
             return is_button(message.text, 'btn_status')
         return False
 
-
-class AvailabilityButtonFilter(filters.MessageFilter):
-    """Matches Availability button in any language."""
-    def filter(self, message):
-        if message.text:
-            return is_button(message.text, 'btn_availability')
-        return False
-
 # Create filter instances
-change_lesson_button = ChangeLessonButtonFilter()
 pay_button = PayButtonFilter()
 status_button = StatusButtonFilter()
-availability_button = AvailabilityButtonFilter()
 
 # Filter for menu buttons
 menu_button_filter = filters.TEXT & filters.Regex(f'^({"|".join(MENU_BUTTONS)})$')
@@ -243,30 +216,6 @@ def register_handlers(app: Application):
         per_message=False
     )
     
-    # Change lesson conversation
-    change_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('change', change_command),
-            MessageHandler(change_lesson_button, change_command)
-        ],
-        states={
-            SELECTING_LESSON: [CallbackQueryHandler(lesson_selected)],
-            SELECTING_CHANGE_TYPE: [CallbackQueryHandler(change_type_selected),
-                                    CallbackQueryHandler(cancel_change, pattern=r'^cancel_action$')
-                                    ],
-            
-            SELECTING_NEW_TIME: [CallbackQueryHandler(back_to_dates, pattern=r'^resched_back$'),
-                                 CallbackQueryHandler(slot_selected, pattern=r'^reschedule_'),
-                                 CallbackQueryHandler(cancel_change, pattern=r'^cancel_action$')],
-            
-            SELECTING_NEW_DATE: [CallbackQueryHandler(date_selected, pattern=r'^resched_date_'),
-                                 CallbackQueryHandler(cancel_change, pattern=r'^cancel_action$')],
-            CONFIRMING: [CallbackQueryHandler(confirm_action)]
-        },
-        fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_change)],
-        per_message=False
-    )
-    
     # Payment conversation
     payment_handler = ConversationHandler(
         entry_points=[
@@ -332,46 +281,6 @@ def register_handlers(app: Application):
             per_message=False
         )
     
-        # Admin: New Support
-    new_support_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('new_support', new_support_command),
-            MessageHandler(filters.Regex('^🧑‍🏫 Academic Support$'), new_support_command)
-        ],
-        states={
-            ENTERING_NAME_SUPPORT: [MessageHandler(filters.TEXT, name_entered_admin)]   
-        },
-        fallbacks=common_fallbacks + [CommandHandler('cancel', cancel_admin)],
-        per_message=False
-    )
-    
-    from app.bot.support import (
-        start_support_booking, 
-        support_date_selected, 
-        support_time_selected, 
-        cancel_support,
-        SELECT_DATE, 
-        SELECT_TIME
-    )
-    # Add this with your other ConversationHandlers
-    support_conv_handler = ConversationHandler(
-        entry_points=[
-            # This triggers when they click the keyboard button
-            MessageHandler(filters.Regex('^(🆘 Book lesson with support|🆘 Записаться на поддержку|🆘 Yordam darsiga yozilish)$'), start_support_booking)
-        ],
-        states={
-            SELECT_DATE: [
-                CallbackQueryHandler(support_date_selected, pattern="^sup_date_"),
-                CallbackQueryHandler(support_date_selected, pattern="^sup_cancel$")
-            ],
-            SELECT_TIME: [
-                CallbackQueryHandler(support_time_selected, pattern="^sup_time_"),
-                CallbackQueryHandler(support_time_selected, pattern="^sup_back$")
-            ]
-        },
-        fallbacks=[CommandHandler('cancel', cancel_support)] # Assuming you have a cancel function
-    )
-    
     # ═══════════════════════════════════════════════════════════
     # REGISTER HANDLERS (order matters!)
     # ═══════════════════════════════════════════════════════════
@@ -380,15 +289,11 @@ def register_handlers(app: Application):
     app.add_handler(registration_handler)
     app.add_handler(new_student_handler)
     app.add_handler(new_teacher_handler)
-    app.add_handler(change_handler)
     app.add_handler(payment_handler)
-    app.add_handler(get_availability_conversation_handler())
     app.add_handler(get_homework_conversation_handler())
     app.add_handler(edit_student_handler)
     app.add_handler(edit_teacher_handler)
     app.add_handler(delete_user_handler)
-    app.add_handler(new_support_handler)
-    app.add_handler(support_conv_handler)
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))
@@ -402,9 +307,7 @@ def register_handlers(app: Application):
     register_language_handlers(app)
     
     # Callback handlers
-    app.add_handler(CallbackQueryHandler(handle_approval, pattern=r'^(approve_|reject_)'))
     app.add_handler(CallbackQueryHandler(schedule_navigation, pattern=r'^schedule_'))
-    app.add_handler(CallbackQueryHandler(handle_approval, pattern=r'^(approve_|reject_)'))
     app.add_handler(CallbackQueryHandler(admin_payment_decision, pattern=r'^admin_(confirm|reject)_'))
     app.add_handler(CallbackQueryHandler(start_attendance, pattern=r"^attend_"))
     app.add_handler(CallbackQueryHandler(toggle_student, pattern=r"^att_toggle_"))

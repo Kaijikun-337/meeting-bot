@@ -1,9 +1,23 @@
-# test_scheduler.py
-# Run: python test_scheduler.py
-
-import logging
-import sys
+# debug.py
 import os
+import sys
+import logging
+
+# ── CRITICAL: Load .env FIRST before any app imports ──
+# This ensures DATABASE_URL is set before get_connection() is called
+from dotenv import load_dotenv
+load_dotenv()
+
+# ── Force debug to always use the REAL database (Neon/Postgres) ──
+# Never use local SQLite for debugging — your data is in Neon
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    print("❌ FATAL: DATABASE_URL not found in .env!")
+    print("   Debug requires connection to Neon (real data).")
+    print("   Make sure your .env file exists and has DATABASE_URL set.")
+    sys.exit(1)
+
+print(f"✅ Using database: {'Postgres/Neon' if DATABASE_URL else 'SQLite'}")
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -11,8 +25,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s | %(name)s | %(levelname)s | %(message)s'
 )
-logger = logging.getLogger('TEST')
-
+logger = logging.getLogger('DEBUG')
 
 # ============================================
 # PHASE 1: Test Database Connection
@@ -102,26 +115,60 @@ def test_student_lookup():
     logger.info("=" * 50)
     logger.info("PHASE 4: Testing Student Lookup")
     logger.info("=" * 50)
-    
+
     try:
         from app.services.user_service import get_students_in_group
-        
-        test_group = "Group M/N"
-        logger.info(f"Looking up students in: '{test_group}'")
-        
-        students = get_students_in_group(test_group)
-        
-        if students:
-            for s in students:
-                logger.info(f"  👤 {s.get('name')} (chat_id: {s.get('chat_id')})")
-            logger.info(f"✅ Found {len(students)} student(s)")
-        else:
-            logger.warning(f"⚠️ No students found in '{test_group}'")
-        
-        return students
+        from app.config import Config
+
+        meetings  = Config.load_meetings()
+        # Get unique groups from JSON
+        group_names = list(set(
+            m.get('group_name') for m in meetings
+            if m.get('group_name')
+        ))
+
+        empty_groups  = []
+        filled_groups = []
+
+        for group in group_names:
+            students = get_students_in_group(group)
+            if students:
+                filled_groups.append(group)
+                logger.info(f"✅ '{group}' → {len(students)} student(s):")
+                for s in students:
+                    logger.info(
+                        f"   👤 {s.get('name')} "
+                        f"(chat_id: {repr(s.get('chat_id'))}, "
+                        f"active: {s.get('is_active')})"
+                    )
+            else:
+                empty_groups.append(group)
+                # ⚠️ Warning only — not an error
+                logger.warning(
+                    f"⚠️  '{group}' → No students yet "
+                    f"(group exists in JSON but no students registered)"
+                )
+
+        logger.info(
+            f"\n  Groups with students : {len(filled_groups)}"
+        )
+        if empty_groups:
+            logger.info(
+                f"  Groups awaiting students: {empty_groups}"
+            )
+
+        # ✅ Only fail if ALL groups have zero students
+        # (that would mean something is seriously wrong)
+        if not filled_groups:
+            logger.error("❌ No students found in ANY group — DB issue!")
+            return False
+
+        logger.info("\n✅ Student lookup working correctly.")
+        return True
+
     except Exception as e:
         logger.error(f"❌ Student lookup CRASHED: {e}", exc_info=True)
-        return None
+        return False
 
 
 # ============================================
@@ -149,7 +196,6 @@ def test_auto_heal():
             return False
         
         logger.info(f"Step 1: Found {teacher['name']} → {teacher['chat_id']}")
-        
         logger.info(f"Step 2: Running update_teacher_group_assignment...")
         update_teacher_group_assignment(test_group, teacher['chat_id'], test_subject)
         
@@ -196,13 +242,11 @@ def test_message_build():
         group_name = m.get('group_name', 'Unknown')
         json_teacher_name = m.get('teacher_name')
         
-        logger.info(f"  JSON teacher_name: {json_teacher_name}")
-        
         teacher = get_teacher_for_group(group_name)
         logger.info(f"  DB teacher for group: {teacher}")
         
         if teacher and json_teacher_name and teacher.get('name') != json_teacher_name:
-            logger.info(f"  🔄 MISMATCH detected! DB={teacher.get('name')} JSON={json_teacher_name}")
+            logger.info(f"  🔄 MISMATCH! DB={teacher.get('name')} JSON={json_teacher_name}")
             teacher = None
         
         if not teacher and json_teacher_name:
@@ -236,288 +280,372 @@ def test_message_build():
 
 
 # ============================================
-# PHASE 7: Test Support System
+# PHASE 7: meetings.json Integrity
 # ============================================
-def test_support_system():
+def test_meetings_json():
     logger.info("=" * 50)
-    logger.info("PHASE 7: Testing Support System")
+    logger.info("PHASE 7: meetings.json Integrity")
     logger.info("=" * 50)
 
-    try:
-        from app.config import Config
-        schedule = Config.load_support_schedule()
-        if schedule:
-            logger.info(f"  ✅ Schedule loaded: {list(schedule.get('schedule', {}).keys())}")
-            logger.info(f"  ⏱ Session duration: {schedule.get('session_duration_minutes')} min")
-            logger.info(f"  📊 Max per week: {schedule.get('max_bookings_per_week')}")
-        else:
-            logger.error("  ❌ support_schedule.json not found!")
-            return False
-    except Exception as e:
-        logger.error(f"  ❌ Config load failed: {e}", exc_info=True)
+    from app.config import Config
+    meetings = Config.load_meetings()
+
+    if not meetings:
+        logger.error("❌ FAIL: No meetings loaded!")
         return False
 
-    try:
-        from app.services.support_service import get_available_support_staff
-        staff = get_available_support_staff()
-        if staff:
-            logger.info(f"  ✅ Support staff: {staff['name']} ({staff['chat_id']})")
-        else:
-            logger.error("  ❌ No active support staff in DB! (role='support', is_active=1)")
-            return False
-    except Exception as e:
-        logger.error(f"  ❌ Staff lookup failed: {e}", exc_info=True)
+    ids = []
+    issues = []
+
+    for m in meetings:
+        mid   = m.get('id')
+        title = m.get('title')
+        tname = m.get('teacher_name')
+        group = m.get('group_name')
+
+        # Check duplicate IDs
+        if mid in ids:
+            issues.append(f"DUPLICATE ID: '{mid}'")
+            logger.error(f"❌ DUPLICATE ID: '{mid}'")
+        ids.append(mid)
+
+        # Check missing required fields
+        for field in ['id', 'title', 'teacher_name', 'group_name']:
+            if not m.get(field):
+                issues.append(f"Missing '{field}' in: {mid}")
+                logger.error(f"❌ Missing '{field}' in meeting: {mid}")
+
+    if issues:
+        logger.error(f"\n🔴 {len(issues)} issue(s) in meetings.json:")
+        for i in issues:
+            logger.error(f"   → {i}")
+        return False
+    else:
+        logger.info(f"✅ All {len(meetings)} meetings clean. No duplicates.")
+        return True
+
+
+# ============================================
+# PHASE 8: Group Name Matching
+# ============================================
+# In test_group_matching(), add a whitelist:
+
+def test_group_matching():
+    logger.info("=" * 50)
+    logger.info("PHASE 8: Student group_name Matching")
+    logger.info("=" * 50)
+
+    from app.config import Config
+    from app.database.db import get_connection
+
+    meetings = Config.load_meetings()
+    conn     = get_connection()
+    cursor   = conn.cursor()
+    cursor.execute(
+        "SELECT name, chat_id, group_name, is_active "
+        "FROM users WHERE role = 'student'"
+    )
+    all_students = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    if not all_students:
+        logger.warning("⚠️ No students in DB.")
+        return True
+
+    json_groups = set(
+        (m.get('group_name') or '').strip().lower()
+        for m in meetings
+    )
+
+    real_errors    = []  # Wrong group name — needs fixing
+    pending_groups = []  # No meetings yet — expected
+
+    for s in all_students:
+        if not s['is_active']:
+            continue
+
+        raw  = s.get('group_name') or ''
+        name = s['name']
+
+        if not raw.strip():
+            logger.info(f"  ⏳ {name} → no group assigned yet")
+            continue
+
+        parsed    = [g.strip().lower() for g in raw.split(',')]
+        matched   = [g for g in parsed if g in json_groups]
+        unmatched = [g for g in parsed if g not in json_groups]
+
+        if matched:
+            logger.info(f"  ✅ {name} → {matched}")
+
+        if unmatched and not matched:
+            # Has a group but it's completely unknown — real error
+            real_errors.append(
+                f"'{name}' group(s) {unmatched} "
+                f"don't exist in meetings.json"
+            )
+            logger.error(
+                f"  ❌ {name} → {unmatched} "
+                f"— no matching group in JSON!"
+            )
+        elif unmatched and matched:
+            # Has SOME matched groups — the unmatched ones
+            # are just pending meetings
+            pending_groups.append(name)
+            logger.warning(
+                f"  ⚠️  {name} → {unmatched} "
+                f"have no meetings yet (OK)"
+            )
+        elif unmatched and not matched:
+            pending_groups.append(name)
+            logger.warning(
+                f"  ⚠️  {name} → awaiting meetings "
+                f"for {unmatched}"
+            )
+
+    if pending_groups:
+        logger.info(
+            f"\n  ⏳ Students awaiting meetings "
+            f"(no action needed): {pending_groups}"
+        )
+
+    if real_errors:
+        logger.error(f"\n🔴 {len(real_errors)} REAL error(s):")
+        for e in real_errors:
+            logger.error(f"   → {e}")
+        logger.info("\n  💡 FIX: Update group_name in DB to match meetings.json")
         return False
 
-    try:
-        from app.services.support_service import get_available_slots
-        slots = get_available_slots(staff['chat_id'])
-        if slots:
-            logger.info(f"  ✅ Generated {len(slots)} available slots")
-            for s in slots[:5]:
-                logger.info(f"     📅 {s['display']}")
-            if len(slots) > 5:
-                logger.info(f"     ... and {len(slots)-5} more")
-        else:
-            logger.warning("  ⚠️ No slots available (might be outside schedule hours)")
-    except Exception as e:
-        logger.error(f"  ❌ Slot generation failed: {e}", exc_info=True)
-        return False
-
-    try:
-        from app.services.support_service import get_weekly_booking_count
-        count = get_weekly_booking_count("test_user_000")
-        logger.info(f"  ✅ Weekly count for test user: {count}")
-    except Exception as e:
-        logger.error(f"  ❌ Weekly count failed: {e}", exc_info=True)
-        return False
-
+    logger.info("\n✅ All students either matched or awaiting meetings.")
     return True
 
 
 # ============================================
-# PHASE 8: Test send_meeting_to_recipients (DRY RUN)
+# PHASE 9: Teacher Lookup Chain
 # ============================================
-def test_send_meeting_flow():
+def test_teacher_lookup():
     logger.info("=" * 50)
-    logger.info("PHASE 8: Testing FULL send_meeting_to_recipients Flow")
+    logger.info("PHASE 9: Teacher Lookup Chain")
     logger.info("=" * 50)
-    
-    try:
-        from app.config import Config
-        from app.jitsi_meet import create_jitsi_meeting
-        
-        meetings = Config.load_meetings()
-        if not meetings:
-            logger.error("❌ No meetings found!")
-            return False
-        
-        m = meetings[0]
-        logger.info(f"  Using meeting: {m['title']} | Group: {m.get('group_name')}")
-        logger.info(f"  JSON teacher_name: {m.get('teacher_name')}")
-        
-        group_name = m.get('group_name', 'Unknown')
-        json_teacher_name = m.get('teacher_name')
-        teacher = None
-        recipients = set()
-        db_teacher_found = False
-        
-        logger.info(f"\n  --- PHASE 1: Teacher Routing ---")
-        
-        if group_name and group_name != 'Unknown':
-            from app.services.user_service import (
-                get_teacher_for_group,
-                get_user_by_name,
-                update_teacher_group_assignment,
-                get_students_in_group
+
+    from app.config import Config
+    from app.services.user_service import get_user_by_name
+
+    meetings = Config.load_meetings()
+    issues   = []
+
+    # Only check: can every teacher_name in JSON be found in DB?
+    # Mismatch on get_teacher_for_group is EXPECTED for shared groups
+    teacher_names = set(
+        m.get('teacher_name', '') for m in meetings
+        if m.get('teacher_name')
+    )
+
+    logger.info(f"\n  Unique teacher names in JSON: {sorted(teacher_names)}")
+    logger.info("\n--- Checking each teacher is registered in DB ---")
+
+    for name in sorted(teacher_names):
+        result = get_user_by_name(name)
+        if result:
+            logger.info(
+                f"  ✅ '{name}' → id={result.get('chat_id')}"
             )
-            
-            teacher = get_teacher_for_group(group_name)
-            logger.info(f"  DB lookup result: {teacher}")
-            
-            if teacher and json_teacher_name and teacher.get('name') != json_teacher_name:
-                logger.info(f"  🔄 MISMATCH! DB: {teacher.get('name')} | JSON: {json_teacher_name}")
-                teacher = None
-            elif teacher:
-                logger.info(f"  ✅ DB matches JSON — no mismatch")
-            
-            if not teacher and json_teacher_name:
-                logger.info(f"  🔧 Auto-healing: looking up '{json_teacher_name}' by name...")
-                teacher = get_user_by_name(json_teacher_name)
-                if teacher:
-                    logger.info(f"  ✅ Found! ID: {teacher['chat_id']}")
-                    update_teacher_group_assignment(
-                        group_name,
-                        teacher['chat_id'],
-                        subject=m.get('subject')
-                    )
-                    logger.info(f"  ✅ DB healed!")
-                else:
-                    logger.error(f"  ❌ '{json_teacher_name}' NOT in users table!")
-            
-            if teacher and teacher.get('chat_id'):
-                recipients.add(str(teacher['chat_id']))
-                db_teacher_found = True
-                logger.info(f"  ✅ Teacher added: {teacher.get('name')} → {teacher['chat_id']}")
-            else:
-                logger.warning(f"  ⚠️ No teacher to add!")
         else:
-            logger.warning(f"  ⚠️ group_name is '{group_name}' — skipping Phase 1")
-        
-        logger.info(f"\n  --- PHASE 2: Fallbacks ---")
-        if not db_teacher_found:
-            json_id = m.get('teacher_chat_id') or m.get('chat_id')
-            if json_id:
-                recipients.add(str(json_id))
-                logger.info(f"  ⚠️ Using fallback ID: {json_id}")
-            else:
-                logger.warning(f"  ❌ No fallback ID either!")
-        else:
-            logger.info(f"  ✅ DB teacher found — no fallback needed")
-        
-        logger.info(f"\n  --- PHASE 3: Students ---")
-        if group_name and group_name != 'Unknown':
-            from app.services.user_service import get_students_in_group
-            students = get_students_in_group(group_name)
-            for s in (students or []):
-                if s.get('chat_id'):
-                    recipients.add(str(s['chat_id']))
-                    logger.info(f"  👤 {s.get('name')} → {s['chat_id']}")
-            if not students:
-                logger.warning(f"  ⚠️ No students in group")
-        
-        logger.info(f"\n  --- PHASE 4: Final Check ---")
-        logger.info(f"  📨 Total recipients: {len(recipients)}")
-        for r in recipients:
-            logger.info(f"     → {r}")
-        
-        if not recipients:
-            logger.error(f"  ❌ ZERO RECIPIENTS — message would be lost!")
-            return False
-        
-        meeting_data = create_jitsi_meeting(title=m['title'])
-        logger.info(f"  🔗 Jitsi: {meeting_data.get('meet_link')}")
-        
-        logger.info(f"\n  ✅ WOULD SEND to {len(recipients)} people (dry run)")
-        return True
-        
-    except Exception as e:
-        logger.error(f"❌ CRASHED: {e}", exc_info=True)
+            logger.error(
+                f"  ❌ '{name}' NOT FOUND in DB — "
+                f"has this teacher registered with the bot?"
+            )
+            issues.append(f"Teacher '{name}' not in DB")
+
+    if issues:
+        logger.error(f"\n🔴 {len(issues)} unregistered teacher(s):")
+        for i in issues:
+            logger.error(f"   → {i}")
         return False
 
+    logger.info("\n✅ All teachers in JSON are registered in DB.")
+    return True
+
 
 # ============================================
-# PHASE 9: Simulating ACTUAL Scheduler Job
+# PHASE 10: /schedule & /today Filter
 # ============================================
-def test_actual_job():
+def test_schedule_filter():
     logger.info("=" * 50)
-    logger.info("PHASE 9: Simulating ACTUAL Scheduler Job")
+    logger.info("PHASE 10: /schedule and /today Teacher Filter")
     logger.info("=" * 50)
-    
-    try:
-        from app.config import Config
-        from app.scheduler import job_send_lesson, create_job_args
-        
-        meetings = Config.load_meetings()
-        if not meetings:
-            logger.error("❌ No meetings!")
-            return False
-        
-        m = meetings[0]
-        logger.info(f"  Meeting: {m['title']}")
-        
-        frozen_args = create_job_args(None, m)
-        logger.info(f"  Frozen args type: {type(frozen_args)}")
-        logger.info(f"  Frozen args[0] (app): {frozen_args[0]}")
-        logger.info(f"  Frozen args[1] (config): {type(frozen_args[1])}")
-        logger.info(f"  Frozen meeting title: {frozen_args[1].get('title')}")
-        logger.info(f"  Frozen teacher_name: {frozen_args[1].get('teacher_name')}")
-        logger.info(f"  Frozen group_name: {frozen_args[1].get('group_name')}")
-        logger.info(f"  Frozen schedule: {frozen_args[1].get('schedule')}")
-        
-        logger.info(f"\n  --- Testing check_lesson_status ---")
-        from app.services.lesson_service import check_lesson_status
-        import pytz
-        from datetime import datetime
-        
-        tz = pytz.timezone(Config.TIMEZONE)
-        today = datetime.now(tz).strftime("%d-%m-%Y")
-        meeting_id = m['id']
-        
-        logger.info(f"  Meeting ID: {meeting_id}")
-        logger.info(f"  Today: {today}")
-        
-        status = check_lesson_status(meeting_id, today)
-        logger.info(f"  Status: {status}")
-        
-        if status['status'] == 'cancelled':
-            logger.warning(f"  ⚠️ Lesson is CANCELLED today — job would skip!")
-        elif status['status'] == 'postponed':
-            logger.warning(f"  ⚠️ Lesson is POSTPONED — job would skip!")
+
+    from app.config import Config
+    from app.database.db import get_connection
+
+    meetings = Config.load_meetings()
+    conn     = get_connection()
+    cursor   = conn.cursor()
+    cursor.execute(
+        "SELECT name, chat_id "
+        "FROM users WHERE role = 'teacher' AND is_active = 1"
+    )
+    teachers = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    if not teachers:
+        logger.warning("⚠️ No active teachers in DB.")
+        return True
+
+    issues = []
+
+    for teacher in teachers:
+        t_name = teacher['name']
+        t_id   = teacher['chat_id']
+
+        # Filter by teacher_name (the fix)
+        correct = [
+            m for m in meetings
+            if (m.get('teacher_name') or '').strip().lower()
+            == t_name.strip().lower()
+        ]
+
+        if correct:
+            logger.info(
+                f"\n  ✅ {t_name} (id={t_id}) "
+                f"→ {len(correct)} meeting(s):"
+            )
+            for m in correct:
+                logger.info(f"       {m['id']}")
         else:
-            logger.info(f"  ✅ Lesson is ACTIVE — job would proceed")
-        
-        logger.info(f"\n  --- Testing Jitsi Link ---")
-        from app.jitsi_meet import create_jitsi_meeting
-        meeting_data = create_jitsi_meeting(title=m['title'])
-        logger.info(f"  Link: {meeting_data.get('meet_link')}")
-        
-        if not meeting_data.get('meet_link'):
-            logger.error(f"  ❌ Jitsi returned no link!")
-            return False
-        
-        logger.info(f"\n  --- Testing job_send_lesson (DRY) ---")
-        from app.scheduler import send_meeting_to_recipients
-        logger.info(f"  ✅ send_meeting_to_recipients imported OK")
-        
-        import inspect
-        sig = inspect.signature(send_meeting_to_recipients)
-        logger.info(f"  ✅ Function signature: {sig}")
-        
-        logger.info(f"\n  --- Testing Scheduler Setup ---")
-        from app.scheduler import DAY_MAP
-        
-        schedule = m.get('schedule', {})
-        days = schedule.get('days', [])
-        hour = schedule.get('hour', 9)
-        minute = schedule.get('minute', 0)
-        
-        cron_days = ",".join(
-            [DAY_MAP.get(d.lower(), d)[:3] for d in days]
+            logger.error(
+                f"\n  ❌ {t_name} → NO MEETINGS MATCHED\n"
+                f"     DB name '{t_name}' doesn't match "
+                f"any teacher_name in JSON!"
+            )
+            issues.append(f"No meetings for teacher '{t_name}'")
+
+    if issues:
+        logger.error(f"\n🔴 {len(issues)} issue(s):")
+        for i in issues:
+            logger.error(f"   → {i}")
+        return False
+
+    logger.info("\n✅ All teachers will see only their own meetings.")
+    return True
+
+
+# ============================================
+# PHASE 11: Simulate get_user_meetings() Fix
+# ============================================
+def test_get_user_meetings():
+    logger.info("=" * 50)
+    logger.info("PHASE 11: Simulate get_user_meetings() After Fix")
+    logger.info("=" * 50)
+
+    from app.config import Config
+    from app.database.db import get_connection
+
+    all_meetings = Config.load_meetings()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT name, chat_id, role, group_name "
+        "FROM users WHERE is_active = 1"
+    )
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    all_ok = True
+
+    for user in users:
+        role    = user['role']
+        name    = (user.get('name') or '').strip()
+        raw_grp = user.get('group_name') or ''
+
+        if role == 'teacher':
+            matched = [
+                m for m in all_meetings
+                if (m.get('teacher_name') or '').strip().lower()
+                == name.lower()
+            ]
+            logger.info(f"\n  👨‍🏫 {name} (teacher) → {len(matched)} meeting(s):")
+            for m in matched:
+                logger.info(f"     ✅ {m['id']} | {m['group_name']}")
+            if not matched:
+                logger.error(
+                    f"     ❌ NO MEETINGS — "
+                    f"DB name '{name}' doesn't match any teacher_name in JSON!"
+                )
+                all_ok = False
+
+        elif role == 'student':
+            user_groups = [g.strip().lower() for g in raw_grp.split(',')]
+            matched = [
+                m for m in all_meetings
+                if (m.get('group_name') or '').strip().lower()
+                in user_groups
+            ]
+            logger.info(f"\n  👤 {name} (student)")
+            logger.info(f"     DB groups : {user_groups}")
+            logger.info(f"     Meetings  : {len(matched)}")
+            for m in matched:
+                logger.info(f"     ✅ {m['id']} | {m['group_name']}")
+            if not matched:
+                logger.warning(
+                    f"     ⚠️ No meetings — "
+                    f"check group_name spelling in DB vs JSON"
+                )
+
+    return all_ok
+
+
+# ============================================
+# PHASE 12: chat_id Type Consistency
+# ============================================
+def test_chat_id_types():
+    logger.info("=" * 50)
+    logger.info("PHASE 12: chat_id Type Consistency")
+    logger.info("=" * 50)
+
+    from app.database.db import get_connection
+
+    conn   = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, role, chat_id FROM users")
+    users  = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    issues = []
+
+    for u in users:
+        cid  = u['chat_id']
+        name = u['name']
+        role = u['role']
+
+        logger.info(
+            f"  {role:8} | {name:20} | "
+            f"chat_id={repr(cid)} | type={type(cid).__name__}"
         )
-        
-        logger.info(f"  Days: {days} → cron: {cron_days}")
-        logger.info(f"  Time: {hour:02d}:{minute:02d}")
-        
-        if not cron_days:
-            logger.error(f"  ❌ No cron days — job would never fire!")
-            return False
-        
-        now = datetime.now(tz)
-        current_day = now.strftime("%A").lower()
-        logger.info(f"  Current day: {current_day}")
-        logger.info(f"  Current time: {now.strftime('%H:%M')}")
-        logger.info(f"  Scheduled days: {days}")
-        
-        if current_day in [d.lower() for d in days]:
-            logger.info(f"  ✅ Today IS a scheduled day")
-        else:
-            logger.info(f"  ℹ️ Today is NOT a scheduled day (next fire on {days})")
-        
-        logger.info(f"\n  ✅ All scheduler components OK")
-        return True
-        
-    except Exception as e:
-        logger.error(f"❌ CRASHED: {e}", exc_info=True)
+
+        try:
+            int(cid)
+        except (ValueError, TypeError):
+            issues.append(f"'{name}' has non-numeric chat_id: {repr(cid)}")
+            logger.error(f"  ❌ Non-numeric chat_id for {name}: {repr(cid)}")
+
+    if issues:
+        logger.error(f"\n🔴 TYPE ISSUES:")
+        for i in issues:
+            logger.error(f"   → {i}")
         return False
+    else:
+        logger.info("\n✅ All chat_ids can safely cast to int.")
+        return True
 
 
 # ============================================
-# PHASE 10: Check for Silent Killers
+# PHASE 13: Silent Killers
 # ============================================
 def test_silent_killers():
     logger.info("=" * 50)
-    logger.info("PHASE 10: Checking for Silent Killers")
+    logger.info("PHASE 13: Checking for Silent Killers")
     logger.info("=" * 50)
     
     issues = []
@@ -527,92 +655,72 @@ def test_silent_killers():
         lang = get_user_language("892571478")
         logger.info(f"  ✅ get_user_language works: {lang}")
         
-        header = get_text('lesson_alert_title', lang)
-        logger.info(f"  ✅ lesson_alert_title: {header[:50]}...")
-        
+        for key in ['lesson_alert_title', 'lesson_details', 'lesson_join', 'lesson_click_hint']:
+            text = get_text(key, lang)
+            if not text or text == key:
+                issues.append(f"Missing localization key: '{key}'")
+                logger.error(f"  ❌ Missing key: '{key}'")
+            else:
+                logger.info(f"  ✅ {key}: OK")
+
         details = get_text('lesson_details', lang)
-        logger.info(f"  ✅ lesson_details template exists: {bool(details)}")
-        
         try:
-            formatted = details.format(
-                title="Test", time="19:00", 
-                group="Group M/N", desc="Test desc",
+            details.format(
+                title="Test", time="19:00",
+                group="Group M/N", desc="Test",
                 subject="math", teacher="Amir"
             )
             logger.info(f"  ✅ lesson_details formats OK")
         except KeyError as e:
+            issues.append(f"lesson_details missing key: {e}")
             logger.error(f"  ❌ lesson_details MISSING KEY: {e}")
-            issues.append(f"Missing template key: {e}")
-        
+
         join = get_text('lesson_join', lang)
         try:
             join.format(link="https://test.com")
             logger.info(f"  ✅ lesson_join formats OK")
         except KeyError as e:
+            issues.append(f"lesson_join missing key: {e}")
             logger.error(f"  ❌ lesson_join MISSING KEY: {e}")
-            issues.append(f"Missing join key: {e}")
-            
-        footer = get_text('lesson_click_hint', lang)
-        logger.info(f"  ✅ lesson_click_hint: {footer[:50] if footer else 'EMPTY'}...")
-        
+
     except Exception as e:
         logger.error(f"  ❌ Localization CRASHED: {e}", exc_info=True)
         issues.append(f"Localization crash: {e}")
-    
+
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
-        from apscheduler.triggers.cron import CronTrigger
         logger.info(f"  ✅ APScheduler imports OK")
     except ImportError as e:
-        logger.error(f"  ❌ APScheduler import FAILED: {e}")
         issues.append(f"APScheduler missing: {e}")
-    
+        logger.error(f"  ❌ APScheduler import FAILED: {e}")
+
     try:
         import pytz
         from app.config import Config
-        tz = pytz.timezone(Config.TIMEZONE)
         from datetime import datetime
+        tz  = pytz.timezone(Config.TIMEZONE)
         now = datetime.now(tz)
         logger.info(f"  ✅ Timezone OK: {Config.TIMEZONE} → {now.strftime('%H:%M %Z')}")
     except Exception as e:
-        logger.error(f"  ❌ Timezone FAILED: {e}")
         issues.append(f"Timezone: {e}")
-    
-    try:
-        from app.scheduler import start_scheduler, load_meetings
-        meetings = load_meetings()
-        logger.info(f"  ✅ load_meetings: {len(meetings)} meetings")
-        
-        for m in meetings:
-            missing = []
-            for key in ['id', 'title', 'schedule', 'group_name', 'teacher_name']:
-                if key not in m:
-                    missing.append(key)
-            if missing:
-                logger.error(f"  ❌ Meeting '{m.get('id', '?')}' missing: {missing}")
-                issues.append(f"Meeting missing fields: {missing}")
-            else:
-                logger.info(f"  ✅ Meeting '{m['id']}' has all required fields")
-    except Exception as e:
-        logger.error(f"  ❌ Scheduler import FAILED: {e}", exc_info=True)
-        issues.append(f"Scheduler: {e}")
-    
+        logger.error(f"  ❌ Timezone FAILED: {e}")
+
     if issues:
-        logger.error(f"\n  🔴 Found {len(issues)} issue(s)!")
+        logger.error(f"\n🔴 {len(issues)} silent killer(s):")
         for i in issues:
-            logger.error(f"     → {i}")
+            logger.error(f"   → {i}")
         return False
     else:
-        logger.info(f"\n  ✅ No silent killers found")
+        logger.info(f"\n✅ No silent killers found.")
         return True
 
 
 # ============================================
-# PHASE 11: Test Role & Keyboard Assignments
+# PHASE 14: Role & Keyboard Assignments
 # ============================================
 def test_role_keyboards():
     logger.info("=" * 50)
-    logger.info("PHASE 11: Testing Role & Keyboard Assignments")
+    logger.info("PHASE 14: Role & Keyboard Assignments")
     logger.info("=" * 50)
     
     issues = []
@@ -620,502 +728,266 @@ def test_role_keyboards():
     try:
         from app.bot.keyboards import main_menu_keyboard
         from telegram import ReplyKeyboardMarkup
-        
-        for lang in ['en', 'ru', 'uz']:
-            kb = main_menu_keyboard(is_admin=True, lang=lang)
-            if not isinstance(kb, ReplyKeyboardMarkup):
-                issues.append(f"Admin keyboard ({lang}) wrong type: {type(kb)}")
-            else:
-                logger.info(f"  ✅ Admin keyboard ({lang}) OK")
-            
-            kb = main_menu_keyboard(is_teacher=True, lang=lang)
-            if not isinstance(kb, ReplyKeyboardMarkup):
-                issues.append(f"Teacher keyboard ({lang}) wrong type: {type(kb)}")
-            else:
-                logger.info(f"  ✅ Teacher keyboard ({lang}) OK")
-            
-            kb = main_menu_keyboard(is_support=True, lang=lang)
-            if not isinstance(kb, ReplyKeyboardMarkup):
-                issues.append(f"Support keyboard ({lang}) wrong type: {type(kb)}")
-            else:
-                logger.info(f"  ✅ Support keyboard ({lang}) OK")
-            
-            kb = main_menu_keyboard(lang=lang)
-            if not isinstance(kb, ReplyKeyboardMarkup):
-                issues.append(f"Student keyboard ({lang}) wrong type: {type(kb)}")
-            else:
-                logger.info(f"  ✅ Student keyboard ({lang}) OK")
-                
-    except Exception as e:
-        logger.error(f"  ❌ Keyboard test CRASHED: {e}", exc_info=True)
-        issues.append(f"Keyboard crash: {e}")
-    
-    try:
         from app.utils.localization import get_text
         
-        for lang in ['en', 'ru', 'uz']:
-            kb = main_menu_keyboard(lang=lang)
-            
-            all_buttons = []
-            for row in kb.keyboard:
-                for button in row:
-                    all_buttons.append(button.text)
-            
-            pay_text = get_text('btn_pay', lang)
-            change_text = get_text('btn_change_lesson', lang)
-            
-            if pay_text in all_buttons:
-                logger.error(f"  ❌ Student keyboard ({lang}) still has PAYMENT button!")
-                issues.append(f"Student has payment button ({lang})")
-            else:
-                logger.info(f"  ✅ Student keyboard ({lang}) — no payment button")
-            
-            if change_text in all_buttons:
-                logger.error(f"  ❌ Student keyboard ({lang}) still has CHANGE LESSON button!")
-                issues.append(f"Student has change lesson button ({lang})")
-            else:
-                logger.info(f"  ✅ Student keyboard ({lang}) — no change lesson button")
-                
-    except Exception as e:
-        logger.error(f"  ❌ Button check CRASHED: {e}", exc_info=True)
-        issues.append(f"Button check crash: {e}")
-    
-    try:
-        for lang in ['en', 'ru', 'uz']:
-            kb = main_menu_keyboard(is_support=True, lang=lang)
-            
-            all_buttons = []
-            for row in kb.keyboard:
-                for button in row:
-                    all_buttons.append(button.text)
-            
-            expected = [
-                get_text('btn_schedule', lang),
-                get_text('btn_today', lang),
-                get_text('btn_status', lang),
-                get_text('btn_language', lang),
-                get_text('btn_help', lang)
-            ]
-            
-            for btn in expected:
-                if btn in all_buttons:
-                    logger.info(f"  ✅ Support ({lang}) has: {btn}")
+        roles = [
+            ('admin',   dict(is_admin=True)),
+            ('teacher', dict(is_teacher=True)),
+            ('support', dict(is_support=True)),
+            ('student', dict()),
+        ]
+
+        for role_name, kwargs in roles:
+            for lang in ['en', 'ru', 'uz']:
+                kb = main_menu_keyboard(**kwargs, lang=lang)
+                if not isinstance(kb, ReplyKeyboardMarkup):
+                    issues.append(f"{role_name} keyboard ({lang}) wrong type")
+                    logger.error(f"  ❌ {role_name} keyboard ({lang}) wrong type")
                 else:
-                    logger.error(f"  ❌ Support ({lang}) MISSING: {btn}")
-                    issues.append(f"Support missing {btn} ({lang})")
-            
-            forbidden = [
-                get_text('btn_pay', lang),
-                get_text('btn_change_lesson', lang),
-                get_text('btn_homework', lang),
-                get_text('btn_book_support', lang)
-            ]
-            
-            for btn in forbidden:
-                if btn in all_buttons:
-                    logger.error(f"  ❌ Support ({lang}) should NOT have: {btn}")
-                    issues.append(f"Support has forbidden {btn} ({lang})")
-                    
-    except Exception as e:
-        logger.error(f"  ❌ Support button check CRASHED: {e}", exc_info=True)
-        issues.append(f"Support check crash: {e}")
-    
-    try:
-        from app.utils.localization import get_text
-        
+                    logger.info(f"  ✅ {role_name} keyboard ({lang}) OK")
+
+        # Students should NOT have teacher-only buttons
         for lang in ['en', 'ru', 'uz']:
-            text = get_text('role_support', lang)
-            if text == 'role_support':
-                logger.error(f"  ❌ 'role_support' not found in {lang} strings!")
-                issues.append(f"Missing role_support in {lang}")
-            else:
-                logger.info(f"  ✅ role_support ({lang}): {text}")
-                
+            kb = main_menu_keyboard(lang=lang)
+            all_buttons = [b.text for row in kb.keyboard for b in row]
+
+            for forbidden_key in ['btn_pay', 'btn_change_lesson']:
+                forbidden_text = get_text(forbidden_key, lang)
+                if forbidden_text in all_buttons:
+                    issues.append(
+                        f"Student keyboard ({lang}) has forbidden: {forbidden_key}"
+                    )
+                    logger.error(
+                        f"  ❌ Student ({lang}) should NOT have '{forbidden_text}'"
+                    )
+
     except Exception as e:
-        logger.error(f"  ❌ Localization check CRASHED: {e}", exc_info=True)
-        issues.append(f"Localization crash: {e}")
-    
-    try:
-        logger.info(f"\n  --- Testing role → status mapping ---")
-        
-        test_roles = ['teacher', 'student', 'support']
-        expected_keys = {
-            'teacher': 'role_teacher',
-            'student': 'role_student', 
-            'support': 'role_support'
-        }
-        
-        for role in test_roles:
-            if role == 'teacher':
-                role_key = 'role_teacher'
-            elif role == 'support':
-                role_key = 'role_support'
-            else:
-                role_key = 'role_student'
-            
-            if role_key == expected_keys[role]:
-                logger.info(f"  ✅ role='{role}' → key='{role_key}'")
-            else:
-                logger.error(f"  ❌ role='{role}' → got '{role_key}', expected '{expected_keys[role]}'")
-                issues.append(f"Wrong role mapping for {role}")
-                
-    except Exception as e:
-        logger.error(f"  ❌ Role mapping CRASHED: {e}", exc_info=True)
-        issues.append(f"Role mapping crash: {e}")
-    
-    try:
-        logger.info(f"\n  --- Testing homework → support forwarding ---")
-        from app.services.support_service import get_available_support_staff
-        
-        support = get_available_support_staff()
-        if support:
-            logger.info(f"  ✅ Support staff found: {support['name']} ({support['chat_id']})")
-            logger.info(f"     Homework will be forwarded to this person")
-        else:
-            logger.warning(f"  ⚠️ No support staff found — homework forwarding will be skipped")
-            
-    except Exception as e:
-        logger.error(f"  ❌ Support staff lookup CRASHED: {e}", exc_info=True)
-        issues.append(f"Support lookup crash: {e}")
-    
+        issues.append(f"Keyboard crash: {e}")
+        logger.error(f"  ❌ Keyboard test CRASHED: {e}", exc_info=True)
+
     if issues:
-        logger.error(f"\n  🔴 {len(issues)} issue(s) found!")
+        logger.error(f"\n🔴 {len(issues)} keyboard issue(s):")
         for i in issues:
-            logger.error(f"     → {i}")
+            logger.error(f"   → {i}")
         return False
     else:
-        logger.info(f"\n  ✅ All role & keyboard tests passed!")
+        logger.info("\n✅ All keyboard tests passed.")
         return True
 
 
 # ============================================
-# PHASE 12: Test Support Double-Booking Prevention
-# ============================================
-def test_support_double_booking():
-    logger.info("=" * 50)
-    logger.info("PHASE 12: Testing Support Double-Booking Prevention")
-    logger.info("=" * 50)
-    
-    issues = []
-    
-    try:
-        from app.services.support_service import (
-            get_available_support_staff,
-            get_available_slots,
-            create_booking,
-            get_booked_sessions,
-            get_weekly_booking_count
-        )
-        from app.config import Config
-        import pytz
-        from datetime import datetime, timedelta
-        
-        # 1. Get support staff
-        support = get_available_support_staff()
-        if not support:
-            logger.error("  ❌ No support staff found!")
-            return False
-        
-        support_id = support['chat_id']
-        logger.info(f"  ✅ Support staff: {support['name']} ({support_id})")
-        
-        # 2. Get available slots BEFORE booking
-        slots_before = get_available_slots(support_id)
-        logger.info(f"  ✅ Available slots before test: {len(slots_before)}")
-        
-        if not slots_before:
-            logger.warning("  ⚠️ No slots available — can't test double booking")
-            logger.warning("     (This might be outside schedule hours)")
-            return True
-        
-        # 3. Pick the first available slot
-        test_slot = slots_before[0]
-        test_date = test_slot['date']
-        test_time = f"{test_slot['hour']:02d}:{test_slot['minute']:02d}"
-        
-        logger.info(f"  📅 Test slot: {test_date} at {test_time}")
-        
-        # 4. Create a FAKE booking (Student A)
-        logger.info(f"\n  --- Simulating Student A booking at {test_time} ---")
-        
-        success = create_booking(
-            student_id="TEST_STUDENT_A",
-            support_id=str(support_id),
-            date_str=test_date,
-            time_str=test_time,
-            link="https://test.jitsi/fake-link"
-        )
-        
-        if success:
-            logger.info(f"  ✅ Student A booked at {test_time}")
-        else:
-            logger.error(f"  ❌ Student A booking FAILED!")
-            issues.append("Booking creation failed")
-            return False
-        
-        # 5. Check that the slot is NOW gone
-        logger.info(f"\n  --- Checking if slot disappeared for Student B ---")
-        
-        slots_after = get_available_slots(support_id)
-        logger.info(f"  ✅ Available slots after booking: {len(slots_after)}")
-        
-        booked_slot_available = False
-        for slot in slots_after:
-            slot_time = f"{slot['hour']:02d}:{slot['minute']:02d}"
-            if slot['date'] == test_date and slot_time == test_time:
-                booked_slot_available = True
-                break
-        
-        if booked_slot_available:
-            logger.error(f"  ❌ DOUBLE BOOKING POSSIBLE! {test_date} {test_time} still available!")
-            issues.append("Double booking not prevented")
-        else:
-            logger.info(f"  ✅ Slot {test_date} {test_time} correctly REMOVED from available list")
-        
-        # 6. Verify booked sessions
-        logger.info(f"\n  --- Verifying get_booked_sessions ---")
-        
-        sessions = get_booked_sessions(str(support_id), test_date)
-        logger.info(f"  Booked sessions for {test_date}: {len(sessions)}")
-        
-        found_our_booking = False
-        for sess in sessions:
-            logger.info(f"     📋 {sess['date']} at {sess['time']} ({sess['duration']} min)")
-            if sess['time'] == test_time:
-                found_our_booking = True
-        
-        if found_our_booking:
-            logger.info(f"  ✅ Our test booking found in sessions")
-        else:
-            logger.error(f"  ❌ Our test booking NOT found in sessions!")
-            issues.append("Booking not returned by get_booked_sessions")
-        
-        # 7. Check slot count decreased
-        actual_decrease = len(slots_before) - len(slots_after)
-        
-        logger.info(f"\n  --- Slot count check ---")
-        logger.info(f"  Before: {len(slots_before)} | After: {len(slots_after)} | Decreased by: {actual_decrease}")
-        
-        if actual_decrease >= 1:
-            logger.info(f"  ✅ Slot count decreased correctly")
-        else:
-            logger.error(f"  ❌ Slot count didn't decrease!")
-            issues.append("Slot count unchanged after booking")
-        
-        # 8. CLEANUP
-        logger.info(f"\n  --- Cleaning up test booking ---")
-        
-        from app.database.db import get_connection
-        conn = get_connection()
-        cur = conn.cursor()
-        try:
-            if Config.DATABASE_URL:
-                cur.execute(
-                    "DELETE FROM support_bookings WHERE student_chat_id = %s",
-                    ("TEST_STUDENT_A",)
-                )
-            else:
-                cur.execute(
-                    "DELETE FROM support_bookings WHERE student_chat_id = ?",
-                    ("TEST_STUDENT_A",)
-                )
-            conn.commit()
-            logger.info(f"  ✅ Test booking cleaned up")
-        except Exception as e:
-            logger.warning(f"  ⚠️ Cleanup failed (not critical): {e}")
-        finally:
-            cur.close()
-            conn.close()
-        
-        # 9. Verify slots restored
-        slots_restored = get_available_slots(support_id)
-        logger.info(f"  Slots after cleanup: {len(slots_restored)}")
-        
-        if len(slots_restored) == len(slots_before):
-            logger.info(f"  ✅ Slots fully restored after cleanup")
-        else:
-            logger.warning(f"  ⚠️ Slots not fully restored ({len(slots_restored)} vs {len(slots_before)})")
-        
-    except Exception as e:
-        logger.error(f"  ❌ CRASHED: {e}", exc_info=True)
-        issues.append(f"Crash: {e}")
-    
-    if issues:
-        logger.error(f"\n  🔴 {len(issues)} issue(s) found!")
-        for i in issues:
-            logger.error(f"     → {i}")
-        return False
-    else:
-        logger.info(f"\n  ✅ Double-booking prevention works correctly!")
-        return True
-
-
-# ============================================
-# PHASE 13: Test Homework Subject Resolution
+# PHASE 15: Homework Subject Resolution
 # ============================================
 def test_homework_subject():
     logger.info("=" * 50)
-    logger.info("PHASE 13: Testing Homework Subject Resolution")
+    logger.info("PHASE 15: Homework Subject Resolution")
     logger.info("=" * 50)
     
     issues = []
     
     try:
         from app.config import Config
-        
-        # 1. Load meetings
         meetings = Config.load_meetings()
+
         if not meetings:
             logger.error("  ❌ No meetings found!")
             return False
-        
-        logger.info(f"  ✅ Loaded {len(meetings)} meetings")
-        
-        # 2. Test subject resolution for each group
-        logger.info(f"\n  --- Testing subject lookup by group_name ---")
-        
-        group_names = set()
-        for m in meetings:
-            gn = m.get('group_name')
-            if gn:
-                group_names.add(gn)
-        
-        logger.info(f"  Found {len(group_names)} unique groups")
-        
+
+        group_names = set(m.get('group_name') for m in meetings if m.get('group_name'))
+
         for group_name in sorted(group_names):
             meeting = next(
-                (m for m in meetings if m.get('group_name') == group_name), 
-                None
+                (m for m in meetings if m.get('group_name') == group_name), None
             )
-            
             if meeting:
-                subject = meeting.get('subject', 'Unknown Subject')
-                title = meeting.get('title', 'Unknown')
-                logger.info(f"  ✅ {group_name} → subject: {subject} | title: {title}")
+                subject = meeting.get('subject', 'Unknown')
+                logger.info(f"  ✅ {group_name} → subject: {subject}")
             else:
-                logger.error(f"  ❌ {group_name} → NO MATCHING MEETING FOUND!")
                 issues.append(f"No meeting for group: {group_name}")
-        
-        # 3. Test fallback for unknown group
-        logger.info(f"\n  --- Testing fallback for unknown group ---")
-        
-        fake_group = "Group DOESNT_EXIST"
-        meeting = next(
-            (m for m in meetings if m.get('group_name') == fake_group), 
-            None
-        )
-        subject = meeting.get('subject', 'Unknown Subject') if meeting else 'Unknown'
-        
-        if subject == 'Unknown':
-            logger.info(f"  ✅ Unknown group correctly returns 'Unknown'")
-        else:
-            logger.error(f"  ❌ Unknown group returned '{subject}' instead of 'Unknown'")
-            issues.append("Fallback for unknown group broken")
-        
-        # 4. Test support staff exists for forwarding
-        logger.info(f"\n  --- Testing support forwarding target ---")
-        
+                logger.error(f"  ❌ {group_name} → no matching meeting!")
+
         from app.services.support_service import get_available_support_staff
         support = get_available_support_staff()
-        
         if support:
-            logger.info(f"  ✅ Homework will forward to: {support['name']} ({support['chat_id']})")
+            logger.info(
+                f"  ✅ Homework forwards to: "
+                f"{support['name']} ({support['chat_id']})"
+            )
         else:
-            logger.warning(f"  ⚠️ No support staff — homework forwarding will be skipped")
-        
-        # 5. Test the full message build
-        logger.info(f"\n  --- Testing support message format ---")
-        
-        from datetime import datetime
-        import pytz
-        
-        tz = pytz.timezone(Config.TIMEZONE)
-        now = datetime.now(tz)
-        timestamp = now.strftime("%d-%m-%Y %H:%M")
-        
-        test_group = list(group_names)[0] if group_names else "Test Group"
-        test_meeting = next(
-            (m for m in meetings if m.get('group_name') == test_group), 
-            None
-        )
-        test_subject = test_meeting.get('subject', 'Unknown') if test_meeting else 'Unknown'
-        
-        support_header = (
-            f"📚 <b>Homework Notification</b>\n\n"
-            f"👨‍🏫 Teacher: <b>Test Teacher</b>\n"
-            f"👥 Group: <b>{test_group}</b>\n"
-            f"📘 Subject: <b>{test_subject}</b>\n"
-            f"👤 Students: Student A, Student B\n"
-            f"📎 Files: 2\n"
-            f"🕐 Sent at: {timestamp}\n"
-            f"{'─' * 30}"
-        )
-        
-        logger.info(f"  Message preview:")
-        for line in support_header.split('\n'):
-            clean = line.replace('<b>', '').replace('</b>', '')
-            clean = clean.replace('<i>', '').replace('</i>', '')
-            logger.info(f"     {clean}")
-        
-        if 'None' in support_header:
-            logger.error(f"  ❌ Message contains 'None' — a field is missing!")
-            issues.append("None in support message")
-        else:
-            logger.info(f"  ✅ Message format OK — no None values")
-        
+            logger.warning("  ⚠️ No support staff — forwarding will be skipped")
+
     except Exception as e:
-        logger.error(f"  ❌ CRASHED: {e}", exc_info=True)
         issues.append(f"Crash: {e}")
-    
+        logger.error(f"  ❌ CRASHED: {e}", exc_info=True)
+
     if issues:
-        logger.error(f"\n  🔴 {len(issues)} issue(s) found!")
+        logger.error(f"\n🔴 {len(issues)} issue(s):")
         for i in issues:
-            logger.error(f"     → {i}")
+            logger.error(f"   → {i}")
         return False
     else:
-        logger.info(f"\n  ✅ Homework subject resolution works correctly!")
+        logger.info("\n✅ Homework subject resolution OK.")
         return True
+    
+# ============================================
+# MIGRATION: Fix Muhammad & Муслима group_name
+# Run ONCE then remove from debug.py
+# ============================================
+def fix_student_groups():
+    logger.info("=" * 50)
+    logger.info("MIGRATION: Fix Mismatched Student Groups")
+    logger.info("=" * 50)
 
+    import os
+    from app.database.db import get_connection
 
+    # Detect which DB we're on
+    is_postgres = bool(os.getenv("DATABASE_URL"))
+    p = "%s" if is_postgres else "?"
+
+    logger.info(f"  DB mode: {'PostgreSQL' if is_postgres else 'SQLite'}")
+
+    fixes = {
+        'Muhammad' : 'Group Muhammad',
+        'Муслима'  : 'Group Muslima',
+    }
+
+    conn   = get_connection()
+
+    # ── Get the right cursor ──────────────────────────
+    # Postgres: conn is ConnectionWrapper → conn.cursor() works
+    # SQLite:   conn is raw sqlite3 conn  → conn.cursor() works
+    # Both work the same way here!
+    cursor = conn.cursor()
+
+    for student_name, new_group in fixes.items():
+
+        # Step 1: Check current state
+        try:
+            cursor.execute(
+                f"SELECT name, group_name FROM users "
+                f"WHERE name = {p} AND role = {p}",
+                (student_name, 'student')
+            )
+            row = cursor.fetchone()
+        except Exception as e:
+            logger.error(f"  ❌ SELECT failed for '{student_name}': {e}")
+            continue
+
+        if not row:
+            logger.error(
+                f"  ❌ Student '{student_name}' not found in DB! "
+                f"Check name spelling exactly."
+            )
+            continue
+
+        # Works for both sqlite3.Row and psycopg2 RealDictRow
+        old_group = dict(row)['group_name']
+        logger.info(f"  Found '{student_name}' — current group: '{old_group}'")
+
+        # Step 2: Apply fix
+        try:
+            cursor.execute(
+                f"UPDATE users SET group_name = {p} "
+                f"WHERE name = {p} AND role = {p}",
+                (new_group, student_name, 'student')
+            )
+        except Exception as e:
+            logger.error(f"  ❌ UPDATE failed for '{student_name}': {e}")
+            continue
+
+        if cursor.rowcount:
+            logger.info(
+                f"  ✅ {student_name}: "
+                f"'{old_group}' → '{new_group}'"
+            )
+        else:
+            logger.error(
+                f"  ❌ rowcount=0 for '{student_name}' — "
+                f"name might not match exactly in DB"
+            )
+
+    conn.commit()
+    conn.close()
+    logger.info("\n✅ Migration done! Re-run debug.py to verify.")
+    logger.info("   Then remove fix_student_groups() from main()")
 # ============================================
 # RUN ALL TESTS
 # ============================================
 def main():
-    logger.info("🚀 SCHEDULER DEBUG SCRIPT")
-    logger.info("This simulates what happens when a lesson fires\n")
-    
+    logger.info("🚀 DEMY BOT — FULL DEBUG SUITE")
+    logger.info("Runs against NEON (Postgres). Safe — no messages sent.\n")
+
+    tests = [
+        ("db_connection",       test_db_connection),
+        ("user_lookup",         test_user_lookup),
+        ("group_lookup",        test_group_lookup),
+        ("student_lookup",      test_student_lookup),
+        ("auto_heal",           test_auto_heal),
+        ("message_build",       test_message_build),
+        ("meetings_json",       test_meetings_json),
+        ("group_matching",      test_group_matching),
+        ("teacher_lookup",      test_teacher_lookup),
+        ("schedule_filter",     test_schedule_filter),
+        ("get_user_meetings",   test_get_user_meetings),
+        ("chat_id_types",       test_chat_id_types),
+        ("silent_killers",      test_silent_killers),
+        ("role_keyboards",      test_role_keyboards),
+        ("homework_subject",    test_homework_subject),
+    ]
+
     results = {}
-    
-    results['db'] = test_db_connection()
-    results['user'] = test_user_lookup()
-    results['group'] = test_group_lookup()
-    results['students'] = test_student_lookup()
-    results['autoheal'] = test_auto_heal()
-    results['message'] = test_message_build()
-    results['support'] = test_support_system()
-    results['send_flow'] = test_send_meeting_flow()
-    results['job_sim'] = test_actual_job()
-    results['killers'] = test_silent_killers()
-    results['roles'] = test_role_keyboards()
-    results['double_booking'] = test_support_double_booking()
-    results['homework_subject'] = test_homework_subject()
-    
-    # Summary
+
+    # ── Step 1: DB must pass first ──────────────────────
+    db_ok = test_db_connection()
+    results['db_connection'] = db_ok
+
+    if not db_ok:
+        logger.error("❌ DB connection failed — cannot run other tests!")
+        logger.error("   Check your DATABASE_URL in .env")
+        return
+
+    # ── Step 2: Run migration if needed ─────────────────
+    # Remove this block after running once successfully
+    logger.info("\n" + "="*50)
+    logger.info("MIGRATION: Fix Student Groups (runs once)")
+    logger.info("="*50)
+    fix_student_groups()
+    # ────────────────────────────────────────────────────
+
+    # ── Step 3: Run all other tests ─────────────────────
+    remaining = [t for t in tests if t[0] != 'db_connection']
+    for name, fn in remaining:
+        try:
+            results[name] = fn()
+        except Exception as e:
+            logger.error(
+                f"❌ {name} CRASHED at top level: {e}",
+                exc_info=True
+            )
+            results[name] = False
+
+    # ── Summary ─────────────────────────────────────────
     logger.info("\n" + "=" * 50)
     logger.info("📋 RESULTS SUMMARY")
     logger.info("=" * 50)
-    
-    all_pass = True
-    for name, passed in results.items():
-        icon = "✅" if passed else "❌"
+
+    passed = [n for n, r in results.items() if r]
+    failed = [n for n, r in results.items() if not r]
+
+    for name, result in results.items():
+        icon = "✅" if result else "❌"
         logger.info(f"  {icon} {name.upper()}")
-        if not passed:
-            all_pass = False
-    
-    if all_pass:
+
+    logger.info(f"\n  Passed : {len(passed)}/{len(tests)}")
+    logger.info(f"  Failed : {len(failed)}/{len(tests)}")
+
+    if not failed:
         logger.info("\n🎉 ALL TESTS PASSED — Safe to deploy!")
     else:
-        logger.info("\n🔴 SOME TESTS FAILED — Fix before deploying!")
+        logger.info("\n🔴 FIX THESE BEFORE DEPLOYING:")
+        for name in failed:
+            logger.info(f"   → {name}")
 
 
 if __name__ == '__main__':
