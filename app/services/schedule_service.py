@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 import pytz
 from app.config import Config
-from app.services.lesson_service import get_override
 from app.services.user_service import get_user, get_teacher_groups
 
 
@@ -81,8 +80,6 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
             meeting_days = [day_map.get(d.lower(), -1) for d in schedule.get('days', [])]
             
             if day_num in meeting_days:
-                # Check for override
-                override = get_override(meeting['id'], date_str)
                 
                 hour = schedule.get('hour', 0)
                 minute = schedule.get('minute', 0)
@@ -96,14 +93,6 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
                     'meeting_id': meeting['id'],
                     'status': 'normal'
                 }
-                
-                if override:
-                    if override['override_type'] == 'cancel':
-                        lesson_info['status'] = 'cancelled'
-                    elif override['override_type'] == 'postpone':
-                        lesson_info['status'] = 'postponed'
-                        lesson_info['new_date'] = override['new_date']
-                        lesson_info['new_time'] = f"{override['new_hour']:02d}:{override['new_minute']:02d}"
                 
                 lessons.append(lesson_info)
         

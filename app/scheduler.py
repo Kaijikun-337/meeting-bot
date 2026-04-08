@@ -8,10 +8,6 @@ from telegram.ext import Application
 
 from app.config import Config
 from app.jitsi_meet import create_jitsi_meeting
-from app.services.lesson_service import (
-    check_lesson_status, 
-    get_all_postponed_to_date
-)
 from app.services.user_service import (
     get_teacher_for_group, 
     get_students_in_group
@@ -143,18 +139,6 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
 async def job_send_lesson(app: Application, meeting_config: dict):
     """Send lesson link at start time."""
     tz = pytz.timezone(Config.TIMEZONE)
-    today = datetime.now(tz).strftime("%d-%m-%Y")
-    meeting_id = meeting_config['id']
-
-    status = check_lesson_status(meeting_id, today)
-
-    if status['status'] == 'cancelled':
-        logger.info(f"⏭️ Skipping {meeting_config['title']} - CANCELLED today.")
-        return
-
-    if status['status'] == 'postponed':
-        logger.info(f"⏭️ Skipping {meeting_config['title']} - POSTPONED to {status.get('new_date')}")
-        return
 
     logger.info(f"⏰ Creating meeting: {meeting_config['title']}")
     meeting_data = create_jitsi_meeting(title=meeting_config['title'])
@@ -241,49 +225,6 @@ async def job_ask_recording(app: Application, meeting_config: dict):
     except Exception as e:
         logger.error(f"❌ Failed to send attendance reminder: {e}")
 
-async def job_check_and_schedule_postponed(app: Application, scheduler: AsyncIOScheduler):
-    """Check daily for postponed lessons."""
-    tz = pytz.timezone(Config.TIMEZONE)
-    now = datetime.now(tz)
-    today = now.strftime("%d-%m-%Y")
-    
-    postponed_today = get_all_postponed_to_date(today)
-    if not postponed_today: return
-
-    meetings = load_meetings()
-    
-    for override in postponed_today:
-        meeting_id = override['meeting_id']
-        new_hour = override['new_hour']
-        new_minute = override['new_minute'] or 0
-        
-        meeting_config = next((m for m in meetings if m['id'] == meeting_id), None)
-        if not meeting_config: continue
-        
-        # Temp config with new time
-        temp_config = meeting_config.copy()
-        temp_config['schedule'] = {'hour': new_hour, 'minute': new_minute}
-        
-        run_time = now.replace(hour=new_hour, minute=new_minute, second=0, microsecond=0)
-        
-        if run_time > now:
-            job_id = f"postponed_{meeting_id}_{today}"
-            if not scheduler.get_job(job_id):
-                logger.info(f"📅 Scheduling postponed: {meeting_config['title']} at {new_hour}:{new_minute}")
-                scheduler.add_job(
-                    job_send_postponed,
-                    'date',
-                    run_date=run_time,
-                    args=[app, temp_config],
-                    id=job_id
-                )
-
-async def job_send_postponed(app: Application, meeting_config: dict):
-    """Send link for postponed lesson."""
-    logger.info(f"⏰ Creating POSTPONED meeting: {meeting_config['title']}")
-    meeting_data = create_jitsi_meeting(title=meeting_config['title'])
-    await send_meeting_to_recipients(app, meeting_config, meeting_data, prefix_key="rescheduled_prefix")
-
 async def job_keep_db_alive():
     """Heartbeat."""
     try:
@@ -351,16 +292,6 @@ def start_scheduler(app: Application):
             replace_existing=True,
             misfire_grace_time=60
         )
-
-        scheduler.add_job(
-            job_check_and_schedule_postponed, 'interval', 
-            minutes=30, args=[app, scheduler], 
-            id='check_postponed_interval', replace_existing=True
-        )
-        scheduler.add_job(
-            job_check_and_schedule_postponed, 'date', 
-            run_date=datetime.now(tz), args=[app, scheduler]
-        )
     
         # NEW: Daily cleanup at 3:00 AM
         scheduler.add_job(
@@ -371,11 +302,6 @@ def start_scheduler(app: Application):
         )
         
         print(f"   ✅ {m['title']}: Link @ {hour:02d}:{minute:02d}")
-
-    # Maintenance Jobs
-    scheduler.add_job(job_check_and_schedule_postponed, 'interval', minutes=30, args=[app, scheduler], id='check_postponed_interval', replace_existing=True)
-    scheduler.add_job(job_check_and_schedule_postponed, 'date', run_date=datetime.now(tz), args=[app, scheduler])
-    # Note: Heartbeat removed for free tier
 
     scheduler.start()
     print(f"🚀 Scheduler started in timezone: {Config.TIMEZONE}")

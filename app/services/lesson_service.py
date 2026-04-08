@@ -3,10 +3,6 @@ import pytz
 from app.database.db import get_connection
 from app.config import Config
 
-# Standard override types
-OVERRIDE_CANCELLED = 'cancelled'
-OVERRIDE_POSTPONED = 'postponed'
-
 def get_upcoming_lessons(meeting_id: str, days_ahead: int = 14, lang: str = 'en') -> list:
     """Get upcoming lesson dates, INCLUDING modified ones (so we can restore them)."""
     from app.utils.localization import get_text

@@ -4,7 +4,6 @@ from app.services.user_service import get_user
 from app.bot.keyboards import schedule_keyboard
 from telegram.constants import ChatAction
 from app.config import Config
-from app.services.lesson_service import get_override, get_postponed_to_date
 from app.utils.localization import get_text, get_user_language  # ← Add this import at top
 
 
@@ -51,8 +50,6 @@ def get_user_meetings(chat_id: str) -> list:
 def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     from datetime import datetime, timedelta
     import pytz
-    # IMPORT THE NEW FUNCTION
-    from app.services.lesson_service import get_all_overrides_for_period 
     from app.utils.localization import get_user_language, format_date_localized, get_day_name
     
     tz = pytz.timezone(Config.TIMEZONE)
@@ -67,15 +64,6 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
     # Formats for query
     start_str = week_start.strftime("%d-%m-%Y")
     end_str = week_end.strftime("%d-%m-%Y")
-    
-    # === BULK FETCH ===
-    # Get all overrides for this week in ONE go
-    try:
-        overrides_data = get_all_overrides_for_period(start_str, end_str)
-    except Exception as e:
-        print(f"⚠️ DB Connection Failed (Using Offline Schedule): {e}")
-        overrides_data = {'by_original_date': {}, 'by_new_date': {}}
-    # ==================
     
     meetings = get_user_meetings(chat_id)
     
@@ -103,16 +91,6 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
             hour = schedule.get('hour', 0)
             minute = schedule.get('minute', 0)
             
-            # --- USE PRE-FETCHED DATA ---
-            # Check if this meeting has an override on this date
-            override = overrides_data['by_original_date'].get(date_str, {}).get(meeting['id'])
-            
-            # Check if any meeting was postponed TO this date
-            # We filter the list of postponed lessons to find ones for this specific meeting
-            postponed_list = overrides_data['by_new_date'].get(date_str, [])
-            postponed_here = next((p for p in postponed_list if p['meeting_id'] == meeting['id']), None)
-            # -----------------------------
-            
             if day_num in meeting_days:
                 lesson_info = {
                     'time': f"{hour:02d}:{minute:02d}",
@@ -125,34 +103,6 @@ def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
                     'status': 'normal'
                 }
                 
-                if override:
-                    if override['override_type'] in ['cancel', 'cancelled']:
-                        lesson_info['status'] = 'cancelled'
-                    elif override['override_type'] in ['postpone', 'postponed']:
-                        lesson_info['status'] = 'postponed'
-                        lesson_info['new_date'] = override['new_date']
-                        if override['new_hour'] is not None:
-                            lesson_info['new_time'] = f"{override['new_hour']:02d}:{override['new_minute']:02d}"
-                        else:
-                            lesson_info['new_time'] = "TBD"
-                
-                lessons.append(lesson_info)
-            
-            if postponed_here:
-                new_hour = postponed_here['new_hour']
-                new_minute = postponed_here['new_minute'] or 0
-                
-                lesson_info = {
-                    'time': f"{new_hour:02d}:{new_minute:02d}",
-                    'hour': new_hour,
-                    'minute': new_minute,
-                    'title': meeting.get('title', 'Lesson'),
-                    'group': meeting.get('group_name', ''),
-                    'teacher': meeting.get('teacher_name', ''),
-                    'meeting_id': meeting['id'],
-                    'status': 'rescheduled',
-                    'original_date': postponed_here['original_date']
-                }
                 lessons.append(lesson_info)
         
         lessons.sort(key=lambda x: (x['hour'], x['minute']))
