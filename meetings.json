@@ -15,11 +15,11 @@
       }
     },
     {
-      "id": "math_mwfs_1700_group_mn_timur",
+      "id": "math_mwfs_1700_group_mn_mramir",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Нормина, Мубина",
       "duration_minutes": 60,
-      "teacher_name": "Timur",
+      "teacher_name": "Mr. Amir",
       "subject": "math",
       "group_name": "Group M/N",
       "schedule": {
@@ -29,11 +29,11 @@
       }
     },
     {
-      "id": "math_mwfs_1900_group_mn_timur",
+      "id": "math_mwfs_1900_group_mn_mramir",
       "title": "Математика",
       "description": "Групповые занятия по математике. \n👨‍🎓 Ученики : Нормина, Мубина",
       "duration_minutes": 60,
-      "teacher_name": "Timur",
+      "teacher_name": "Mr. Amir",
       "subject": "math",
       "group_name": "Group M/N",
       "schedule": {
@@ -57,11 +57,11 @@
       }
     },
     {
-      "id": "math_twfs_2000_group_aziza_timur",
+      "id": "math_twfs_2000_group_aziza_mramir",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Азиза",
       "duration_minutes": 60,
-      "teacher_name": "Timur",
+      "teacher_name": "Mr. Amir",
       "subject": "math",
       "group_name": "Group Aziza",
       "schedule": {
@@ -211,7 +211,7 @@
       }
     },
     {
-      "id": "en_mttf_2130_group_fe_sardor",
+      "id": "en_ss_2130_group_fe_sardor",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Феруза",
       "duration_minutes": 60,
@@ -219,13 +219,13 @@
       "subject": "Английский",
       "group_name": "Group Fe",
       "schedule": {
-        "days": ["monday", "thursday"],
-        "hour": 21,
-        "minute": 30
+        "days": ["saturday", "sunday"],
+        "hour": 10,
+        "minute": 0
       }
     },
     {
-      "id": "eng_mttf_2130_group_fe_mruslan",
+      "id": "eng_ss_2130_group_fe_mruslan",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Феруза",
       "duration_minutes": 60,
@@ -233,9 +233,9 @@
       "subject": "Английский",
       "group_name": "Group Fe",
       "schedule": {
-        "days": ["tuesday", "friday"],
-        "hour": 21,
-        "minute": 30
+        "days": ["saturday", "sunday"],
+        "hour": 11,
+        "minute": 0
       }
     },
     {
@@ -323,11 +323,11 @@
       }
     },
     {
-      "id": "math_mwf_2130_group_ma_timur",
+      "id": "math_mwf_2130_group_ma_mramir",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Макар",
       "duration_minutes": 60,
-      "teacher_name": "Timur",
+      "teacher_name": "Mr. Amir",
       "subject": "Математика",
       "group_name": "Group Ma",
       "schedule": {
@@ -351,11 +351,11 @@
       }
     },
     {
-      "id": "math_mttf_2000_group_muslima_timur",
+      "id": "math_mttf_2000_group_muslima_mramir",
       "title": "Математика",
       "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Муслима",
       "duration_minutes": 60,
-      "teacher_name": "Timur",
+      "teacher_name": "Mr. Amir",
       "subject": "Математика",
       "group_name": "Group Muslima",
       "schedule": {
