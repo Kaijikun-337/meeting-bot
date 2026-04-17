@@ -332,7 +332,7 @@
       "group_name": "Group Ma",
       "schedule": {
         "days": ["wednesday", "friday"],
-        "hour": 21,
+        "hour": 22,
         "minute": 30
       }
     },
@@ -389,6 +389,34 @@
       "schedule": {
         "days": ["tuesday", "friday"],
         "hour": 20,
+        "minute": 0
+      }
+    },
+    {
+      "id": "en_mttf_2000_group_mansurovk_ali",
+      "title": "Английский язык",
+      "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Камрон",
+      "duration_minutes": 60,
+      "teacher_name": "Ali",
+      "subject": "Английский",
+      "group_name": "Group Mansurov K.",
+      "schedule": {
+        "days": ["tuesday", "friday"],
+        "hour": 21,
+        "minute": 0
+      }
+    },
+    {
+      "id": "en_mttf_2000_group_mansurovk_aziz",
+      "title": "Английский язык",
+      "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Камрон",
+      "duration_minutes": 60,
+      "teacher_name": "Aziz",
+      "subject": "Английский",
+      "group_name": "Group Mansurov K.",
+      "schedule": {
+        "days": ["monday", "thursday"],
+        "hour": 21,
         "minute": 0
       }
     }
