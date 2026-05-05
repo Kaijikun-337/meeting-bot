@@ -17,9 +17,6 @@ class Config:
     # Meetings config
     MEETINGS_FILE = "meetings.json"
     
-    # Price list
-    PRICE_LIST_FILE = "price_list.json"
-    
     # Google Sheets
     SHEETS_CREDENTIALS_FILE = "credentials.json"
     #GOOGLE_SHEETS_ID = os.getenv("GOOGLE_SHEETS_ID")
@@ -48,34 +45,3 @@ class Config:
         except json.JSONDecodeError as e:
             print(f"❌ Invalid JSON in {full_path}: {e}")
             return []
-    
-    @staticmethod
-    def load_price_list() -> dict:
-        try:
-            with open(Config.PRICE_LIST_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            print(f"⚠️ {Config.PRICE_LIST_FILE} not found")
-            return {"courses": [], "default_price": 100.00, "currency": "USD"}
-        except json.JSONDecodeError as e:
-            print(f"❌ Invalid JSON: {e}")
-            return {"courses": [], "default_price": 100.00, "currency": "USD"}
-    
-    @staticmethod
-    def get_course_price(subject: str, teacher: str, group: str) -> float:
-        """Get price for a specific course."""
-        price_list = Config.load_price_list()
-        
-        for course in price_list.get('courses', []):
-            if (course.get('subject', '').lower() == subject.lower() and
-                course.get('teacher', '').lower() == teacher.lower() and
-                course.get('group', '').lower() == group.lower()):
-                return course.get('price', price_list.get('default_price', 100.00))
-        
-        # Try matching just subject and teacher
-        for course in price_list.get('courses', []):
-            if (course.get('subject', '').lower() == subject.lower() and
-                course.get('teacher', '').lower() == teacher.lower()):
-                return course.get('price', price_list.get('default_price', 100.00))
-        
-        return price_list.get('default_price', 100.00)
