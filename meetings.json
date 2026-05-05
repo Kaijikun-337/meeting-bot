@@ -337,34 +337,6 @@
       }
     },
     {
-      "id": "math_mttf_2000_group_muslima_amir",
-      "title": "Математика",
-      "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Муслима",
-      "duration_minutes": 60,
-      "teacher_name": "Amir",
-      "subject": "Математика",
-      "group_name": "Group Muslima",
-      "schedule": {
-        "days": ["monday", "thursday"],
-        "hour": 20,
-        "minute": 0
-      }
-    },
-    {
-      "id": "math_mttf_2000_group_muslima_mramir",
-      "title": "Математика",
-      "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Муслима",
-      "duration_minutes": 60,
-      "teacher_name": "Mr. Amir",
-      "subject": "Математика",
-      "group_name": "Group Muslima",
-      "schedule": {
-        "days": ["tuesday", "friday"],
-        "hour": 20,
-        "minute": 0
-      }
-    },
-    {
       "id": "en_mttf_2000_group_akrom_aziz",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Акром",
