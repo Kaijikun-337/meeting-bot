@@ -1,3 +1,4 @@
+import asyncio
 import pytz
 import logging
 from datetime import datetime, timedelta
@@ -9,7 +10,7 @@ from telegram.ext import Application
 from app.config import Config
 from app.jitsi_meet import create_jitsi_meeting
 from app.services.user_service import (
-    get_teacher_for_group, 
+    get_teacher_for_group,
     get_students_in_group
 )
 from app.database.db import get_connection
@@ -32,34 +33,34 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
     desc = meeting_config.get('description', '')
     subject = meeting_config.get('subject', '')
     link = meeting_data.get('meet_link')
-    
+
     json_teacher_name = meeting_config.get('teacher_name')
-    
+
     sch = meeting_config.get('schedule', {})
     time_str = f"{sch.get('hour', 0):02d}:{sch.get('minute', 0):02d}"
 
     recipients = set()
     db_teacher_found = False
     current_teacher_name = json_teacher_name
-    teacher = None  # ← Initialize here so it always exists!
+    teacher = None
 
     # --- PHASE 1: SMART TEACHER ROUTING (AUTO-HEALING) ---
     if group_name and group_name != 'Unknown':
         from app.services.user_service import (
-            get_teacher_for_group, 
-            get_user_by_name, 
+            get_teacher_for_group,
+            get_user_by_name,
             update_teacher_group_assignment,
             get_students_in_group
         )
-        
+
         teacher = get_teacher_for_group(group_name)
-        
+
         # MISMATCH CHECK
         if teacher and json_teacher_name and teacher.get('name') != json_teacher_name:
             logger.info(f"🔄 Mismatch for {group_name}. DB: {teacher.get('name')} | JSON: {json_teacher_name}")
             teacher = None
 
-        # AUTO-HEAL (inside the if block!)
+        # AUTO-HEAL
         if not teacher and json_teacher_name:
             teacher = get_user_by_name(json_teacher_name)
             if teacher:
@@ -68,7 +69,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
                     f"Auto-healing DB..."
                 )
                 update_teacher_group_assignment(
-                    group_name, 
+                    group_name,
                     teacher['chat_id'],
                     subject=meeting_config.get('subject')
                 )
@@ -78,7 +79,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
                     f"Has this teacher registered with the bot?"
                 )
 
-        # ADD TEACHER TO RECIPIENTS (inside the if block!)
+        # ADD TEACHER TO RECIPIENTS
         if teacher and teacher.get('chat_id'):
             teacher_id = str(teacher['chat_id'])
             recipients.add(teacher_id)
@@ -111,19 +112,22 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
     for chat_id in recipients:
         try:
             lang = get_user_language(chat_id)
-            
+
             header = get_text('lesson_alert_title', lang)
             if prefix_key:
                 header = get_text(prefix_key, lang) + header
-                
+
             details = get_text('lesson_details', lang).format(
                 title=title, time=time_str, group=group_name,
                 desc=desc, subject=subject, teacher=current_teacher_name
             )
-            
-            join_section = get_text('lesson_join', lang).format(link=link)
+
+            # Wrap link in <a> tag to guarantee clickability
+            join_section = get_text('lesson_join', lang).format(
+                link=f'<a href="{link}">{link}</a>'
+            )
             footer = get_text('lesson_click_hint', lang)
-            
+
             full_text = f"{header}\n\n{details}\n\n{join_section}\n\n{footer}"
 
             await app.bot.send_message(
@@ -133,22 +137,27 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
                 disable_web_page_preview=True
             )
             logger.info(f"✅ Sent link to {chat_id}")
+
+            # ⏱ Rate-limit safety: small delay between sends
+            await asyncio.sleep(0.05)
+
         except Exception as e:
             logger.error(f"❌ Failed to send to {chat_id}: {e}")
 
 async def job_send_lesson(app: Application, meeting_config: dict):
     """Send lesson link at start time."""
-    tz = pytz.timezone(Config.TIMEZONE)
-
     logger.info(f"⏰ Creating meeting: {meeting_config['title']}")
-    meeting_data = create_jitsi_meeting(title=meeting_config['title'])
+    meeting_data = create_jitsi_meeting(
+        title=meeting_config['title'],
+        subject=meeting_config.get('subject')      # ← NOW PASSES SUBJECT
+    )
     await send_meeting_to_recipients(app, meeting_config, meeting_data)
 
 async def job_ask_recording(app: Application, meeting_config: dict):
     """Remind teacher to upload recording AND mark attendance."""
     group_name = meeting_config.get('group_name')
-    
-    # --- SMART TEACHER LOOKUP (mirrors send_meeting_to_recipients) ---
+
+    # --- SMART TEACHER LOOKUP ---
     json_teacher_name = meeting_config.get('teacher_name')
     teacher = None
     teacher_id = None
@@ -160,34 +169,32 @@ async def job_ask_recording(app: Application, meeting_config: dict):
             get_user_by_name,
             update_teacher_group_assignment
         )
-        
+
         teacher = get_teacher_for_group(group_name)
-        
-        # Mismatch check: JSON is authority
+
         if teacher and json_teacher_name and teacher.get('name') != json_teacher_name:
             logger.info(f"🔄 Recording reminder: teacher mismatch for {group_name}")
             teacher = None
-        
-        # Auto-heal if needed
+
         if not teacher and json_teacher_name:
             teacher = get_user_by_name(json_teacher_name)
             if teacher:
                 update_teacher_group_assignment(group_name, teacher['chat_id'])
-        
+
         if teacher and teacher.get('chat_id'):
             teacher_id = teacher['chat_id']
             teacher_name = teacher.get('name', json_teacher_name)
-    
+
     # Fallback
     if not teacher_id:
         teacher_id = meeting_config.get('teacher_chat_id') or meeting_config.get('chat_id')
-    
+
     if not teacher_id:
         logger.warning(f"⚠️ No teacher for recording reminder: {group_name}")
-        return 
-        
+        return
+
     title = meeting_config.get('title')
-    
+
     # --- VIDEO REMINDER ---
     msg_video = (
         f"🎥 <b>Lesson Finished: {title}</b>\n\n"
@@ -199,27 +206,27 @@ async def job_ask_recording(app: Application, meeting_config: dict):
         f"2. Upload the video\n"
         f"3. Select the group"
     )
-    
+
     try:
         await app.bot.send_message(
-            chat_id=teacher_id, 
-            text=msg_video, 
+            chat_id=teacher_id,
+            text=msg_video,
             parse_mode=ParseMode.HTML
         )
         logger.info(f"✅ Sent recording reminder to {teacher_name}")
     except Exception as e:
         logger.error(f"❌ Failed to send recording reminder: {e}")
-    
-    # --- ATTENDANCE REMINDER (NO kb - just text) ---
+
+    # --- ATTENDANCE REMINDER ---
     msg_attend = (
         f"📋 Please mark who was present for "
         f"<b>{group_name}</b> in CRM."
     )
-    
+
     try:
         await app.bot.send_message(
-            chat_id=teacher_id, 
-            text=msg_attend, 
+            chat_id=teacher_id,
+            text=msg_attend,
             parse_mode=ParseMode.HTML
         )
     except Exception as e:
@@ -233,8 +240,7 @@ async def job_keep_db_alive():
         conn.close()
     except Exception as e:
         logger.error(f"❌ DB Heartbeat failed: {e}")
-        
-# Helper to freeze data
+
 def create_job_args(app, meeting):
     return [app, dict(meeting)]
 
@@ -249,7 +255,7 @@ def start_scheduler(app: Application):
     """Initialize and start the scheduler."""
     tz = pytz.timezone(Config.TIMEZONE)
     scheduler = AsyncIOScheduler(timezone=tz)
-    
+
     meetings = load_meetings()
     if not meetings:
         print("⚠️ No meetings configured")
@@ -262,46 +268,46 @@ def start_scheduler(app: Application):
         days = schedule.get('days', [])
         hour = schedule.get('hour', 9)
         minute = schedule.get('minute', 0)
-        
-        cron_days = ",".join([DAY_MAP.get(d.lower(), d)[:3] for d in days])
-        if not cron_days: continue
 
-        # 1. SEND LINK JOB (Start Time)
-        # Use factory to freeze 'm' and add grace time
+        cron_days = ",".join([DAY_MAP.get(d.lower(), d)[:3] for d in days])
+        if not cron_days:
+            continue
+
+        # 1. SEND LINK JOB
         scheduler.add_job(
             job_send_lesson,
             CronTrigger(day_of_week=cron_days, hour=hour, minute=minute, timezone=tz),
-            args=create_job_args(app, m), 
+            args=create_job_args(app, m),
             id=m['id'],
             replace_existing=True,
-            misfire_grace_time=60 # Allow 60s delay if CPU busy
+            misfire_grace_time=300   # ← 5 min instead of 60s
         )
 
-        # 2. ASK RECORDING JOB (End Time)
+        # 2. ASK RECORDING JOB
         duration = m.get('duration_minutes', 60)
         end_minute = minute + duration
         end_hour = hour + (end_minute // 60)
         end_minute = end_minute % 60
         end_hour = end_hour % 24
-        
+
         scheduler.add_job(
             job_ask_recording,
             CronTrigger(day_of_week=cron_days, hour=end_hour, minute=end_minute, timezone=tz),
             args=create_job_args(app, m),
             id=f"{m['id']}_rec",
             replace_existing=True,
-            misfire_grace_time=60
+            misfire_grace_time=300   # ← 5 min instead of 60s
         )
-    
-        # NEW: Daily cleanup at 3:00 AM
-        scheduler.add_job(
-            job_cleanup_expired_keys,
-            CronTrigger(hour=3, minute=0, timezone=tz),
-            id='cleanup_expired_keys',
-            replace_existing=True
-        )
-        
+
         print(f"   ✅ {m['title']}: Link @ {hour:02d}:{minute:02d}")
+
+    # Daily cleanup at 3:00 AM (only once, outside the loop!)
+    scheduler.add_job(
+        job_cleanup_expired_keys,
+        CronTrigger(hour=3, minute=0, timezone=tz),
+        id='cleanup_expired_keys',
+        replace_existing=True
+    )
 
     scheduler.start()
     print(f"🚀 Scheduler started in timezone: {Config.TIMEZONE}")
