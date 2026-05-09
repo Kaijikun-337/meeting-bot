@@ -163,35 +163,6 @@ def init_database():
         )
     """)
     
-    # 8. Attendance Log
-    # Stores the status of every student for every lesson instance
-    cursor.execute(f"""
-        CREATE TABLE IF NOT EXISTS attendance_log (
-            id {pk_type},
-            meeting_id TEXT NOT NULL,
-            date TEXT NOT NULL,
-            student_chat_id TEXT NOT NULL,
-            status TEXT NOT NULL,  -- 'present', 'absent', 'cancelled'
-            marked_by TEXT,        -- Who marked this? (Teacher ID)
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(meeting_id, date, student_chat_id)
-        )
-    """)
-
-    # --- AUTO-FIX FOR LOCAL SQLITE ---
-    # Attempt to add columns that might be missing in your local file
-    if not (DATABASE_URL and HAS_POSTGRES):
-        try:
-            cursor.execute("ALTER TABLE lesson_overrides ADD COLUMN override_type TEXT")
-            print("🔧 Fixed: Added 'override_type' to lesson_overrides")
-        except:
-            pass
-        
-        try:
-            cursor.execute("ALTER TABLE lesson_overrides ADD COLUMN status TEXT")
-        except:
-            pass
-
     conn.commit()
     conn.close()
     print("✅ Database initialized successfully.")

@@ -10,7 +10,7 @@ from telegram.ext import (
 from app.services.user_service import (
     get_user,
     get_user_role,
-    get_teacher_groups,
+    get_teacher_groups_effective,
     get_students_in_group
 )
 from app.utils.localization import get_text, get_user_language
@@ -77,7 +77,7 @@ async def homework_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     
     # Check if teacher has groups
-    groups = get_teacher_groups(chat_id)
+    groups = get_teacher_groups_effective(chat_id)
     if not groups:
         await update.message.reply_text(get_text('no_groups_assigned', lang))
         return ConversationHandler.END
@@ -180,7 +180,7 @@ async def done_uploading(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return WAITING_FOR_FILES
     
     # Get teacher's groups
-    groups = get_teacher_groups(chat_id)
+    groups = get_teacher_groups_effective(chat_id)
     
     if not groups:
         await query.edit_message_text(get_text('no_groups_assigned', lang))

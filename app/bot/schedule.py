@@ -14,7 +14,7 @@ def is_admin(chat_id: str) -> bool:
 
 def get_user_meetings(chat_id: str) -> list:
     from app.config import Config
-    from app.services.user_service import get_teacher_groups, get_user
+    from app.services.user_service import get_teacher_groups_effective, get_user
     
     if is_admin(chat_id):
         return Config.load_meetings()
@@ -36,7 +36,7 @@ def get_user_meetings(chat_id: str) -> list:
         ]
     else:
         # Teacher Logic (Already supports multiple rows in DB)
-        teacher_groups = get_teacher_groups(chat_id)
+        teacher_groups = get_teacher_groups_effective(chat_id)
         if not teacher_groups:
             return []
             

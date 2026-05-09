@@ -9,7 +9,10 @@
       "subject": "math",
       "group_name": "Group M/N",
       "schedule": {
-        "days": ["monday", "friday"],
+        "days": [
+          "monday",
+          "friday"
+        ],
         "hour": 19,
         "minute": 0
       }
@@ -23,7 +26,9 @@
       "subject": "math",
       "group_name": "Group M/N",
       "schedule": {
-        "days": ["saturday"],
+        "days": [
+          "saturday"
+        ],
         "hour": 17,
         "minute": 0
       }
@@ -37,7 +42,9 @@
       "subject": "math",
       "group_name": "Group M/N",
       "schedule": {
-        "days": ["wednesday"],
+        "days": [
+          "wednesday"
+        ],
         "hour": 19,
         "minute": 0
       }
@@ -51,7 +58,10 @@
       "subject": "math",
       "group_name": "Group Aziza",
       "schedule": {
-        "days": ["tuesday", "friday"],
+        "days": [
+          "tuesday",
+          "friday"
+        ],
         "hour": 20,
         "minute": 0
       }
@@ -65,7 +75,10 @@
       "subject": "math",
       "group_name": "Group Aziza",
       "schedule": {
-        "days": ["wednesday", "saturday"],
+        "days": [
+          "wednesday",
+          "saturday"
+        ],
         "hour": 20,
         "minute": 0
       }
@@ -79,7 +92,9 @@
       "subject": "Английский",
       "group_name": "Group Muhammad",
       "schedule": {
-        "days": ["monday"],
+        "days": [
+          "monday"
+        ],
         "hour": 17,
         "minute": 0
       }
@@ -93,7 +108,9 @@
       "subject": "Английский",
       "group_name": "Group Muhammad",
       "schedule": {
-        "days": ["thursday"],
+        "days": [
+          "thursday"
+        ],
         "hour": 14,
         "minute": 0
       }
@@ -107,7 +124,10 @@
       "subject": "Английский",
       "group_name": "Group Muhammad",
       "schedule": {
-        "days": ["wednesday", "friday"],
+        "days": [
+          "wednesday",
+          "friday"
+        ],
         "hour": 14,
         "minute": 0
       }
@@ -121,7 +141,10 @@
       "subject": "Английский",
       "group_name": "Group S/R/A",
       "schedule": {
-        "days": ["monday", "friday"],
+        "days": [
+          "monday",
+          "friday"
+        ],
         "hour": 20,
         "minute": 30
       }
@@ -135,7 +158,9 @@
       "subject": "Английский",
       "group_name": "Group S/R/A",
       "schedule": {
-        "days": ["saturday"],
+        "days": [
+          "saturday"
+        ],
         "hour": 14,
         "minute": 0
       }
@@ -149,7 +174,9 @@
       "subject": "Английский",
       "group_name": "Group S/R/A",
       "schedule": {
-        "days": ["wednesday"],
+        "days": [
+          "wednesday"
+        ],
         "hour": 20,
         "minute": 30
       }
@@ -163,7 +190,10 @@
       "subject": "Математика",
       "group_name": "Group K/D",
       "schedule": {
-        "days": ["tuesday", "friday"],
+        "days": [
+          "tuesday",
+          "friday"
+        ],
         "hour": 19,
         "minute": 30
       }
@@ -177,7 +207,10 @@
       "subject": "Математика",
       "group_name": "Group K/D",
       "schedule": {
-        "days": ["wednesday", "saturday"],
+        "days": [
+          "wednesday",
+          "saturday"
+        ],
         "hour": 18,
         "minute": 30
       }
@@ -191,7 +224,10 @@
       "subject": "Английский",
       "group_name": "Group K/D",
       "schedule": {
-        "days": ["monday", "thursday"],
+        "days": [
+          "monday",
+          "thursday"
+        ],
         "hour": 19,
         "minute": 30
       }
@@ -205,7 +241,10 @@
       "subject": "Английский",
       "group_name": "Group K/D",
       "schedule": {
-        "days": ["tuesday", "friday"],
+        "days": [
+          "tuesday",
+          "friday"
+        ],
         "hour": 18,
         "minute": 30
       }
@@ -219,7 +258,10 @@
       "subject": "Английский",
       "group_name": "Group Fe",
       "schedule": {
-        "days": ["saturday", "sunday"],
+        "days": [
+          "saturday",
+          "sunday"
+        ],
         "hour": 10,
         "minute": 0
       }
@@ -233,7 +275,10 @@
       "subject": "Английский",
       "group_name": "Group Fe",
       "schedule": {
-        "days": ["saturday", "sunday"],
+        "days": [
+          "saturday",
+          "sunday"
+        ],
         "hour": 11,
         "minute": 0
       }
@@ -247,7 +292,10 @@
       "subject": "Английский",
       "group_name": "Group Mi",
       "schedule": {
-        "days": ["tuesday", "friday"],
+        "days": [
+          "tuesday",
+          "friday"
+        ],
         "hour": 18,
         "minute": 30
       }
@@ -261,7 +309,9 @@
       "subject": "Английский",
       "group_name": "Group Mi",
       "schedule": {
-        "days": ["wednesday"],
+        "days": [
+          "wednesday"
+        ],
         "hour": 19,
         "minute": 30
       }
@@ -275,7 +325,9 @@
       "subject": "Английский",
       "group_name": "Group Mi",
       "schedule": {
-        "days": ["saturday"],
+        "days": [
+          "saturday"
+        ],
         "hour": 12,
         "minute": 0
       }
@@ -289,7 +341,10 @@
       "subject": "Английский",
       "group_name": "Group Be",
       "schedule": {
-        "days": ["monday", "thursday"],
+        "days": [
+          "monday",
+          "thursday"
+        ],
         "hour": 18,
         "minute": 30
       }
@@ -303,36 +358,11 @@
       "subject": "Английский",
       "group_name": "Group Be",
       "schedule": {
-        "days": ["tuesday", "friday"],
+        "days": [
+          "tuesday",
+          "friday"
+        ],
         "hour": 19,
-        "minute": 30
-      }
-    },
-    {
-      "id": "math_mwf_2130_group_ma_amir",
-      "title": "Математика",
-      "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Макар",
-      "duration_minutes": 60,
-      "teacher_name": "Amir",
-      "subject": "Математика",
-      "group_name": "Group Ma",
-      "schedule": {
-        "days": ["monday"],
-        "hour": 21,
-        "minute": 30
-      }
-    },
-    {
-      "id": "math_mwf_2130_group_ma_mramir",
-      "title": "Математика",
-      "description": "Индивидуальное занятие по математике. \n👨‍🎓 Ученики : Макар",
-      "duration_minutes": 60,
-      "teacher_name": "Mr. Amir",
-      "subject": "Математика",
-      "group_name": "Group Ma",
-      "schedule": {
-        "days": ["wednesday", "friday"],
-        "hour": 22,
         "minute": 30
       }
     },
@@ -345,7 +375,10 @@
       "subject": "Английский",
       "group_name": "Group Akrom",
       "schedule": {
-        "days": ["monday", "thursday"],
+        "days": [
+          "monday",
+          "thursday"
+        ],
         "hour": 20,
         "minute": 0
       }
@@ -359,7 +392,10 @@
       "subject": "Английский",
       "group_name": "Group Akrom",
       "schedule": {
-        "days": ["tuesday", "friday"],
+        "days": [
+          "tuesday",
+          "friday"
+        ],
         "hour": 20,
         "minute": 0
       }
@@ -373,7 +409,10 @@
       "subject": "Английский",
       "group_name": "Group Mansurov K.",
       "schedule": {
-        "days": ["tuesday", "friday"],
+        "days": [
+          "tuesday",
+          "friday"
+        ],
         "hour": 21,
         "minute": 0
       }
@@ -387,7 +426,10 @@
       "subject": "Английский",
       "group_name": "Group Mansurov K.",
       "schedule": {
-        "days": ["monday", "thursday"],
+        "days": [
+          "monday",
+          "thursday"
+        ],
         "hour": 21,
         "minute": 0
       }

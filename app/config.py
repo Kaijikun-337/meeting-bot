@@ -17,20 +17,7 @@ class Config:
     # Meetings config
     MEETINGS_FILE = "meetings.json"
     
-    # Google Sheets
-    SHEETS_CREDENTIALS_FILE = "credentials.json"
-    #GOOGLE_SHEETS_ID = os.getenv("GOOGLE_SHEETS_ID")
     DATABASE_URL = os.getenv("DATABASE_URL")
-    
-    # Teacher Colors
-    TEACHER_COLORS = {
-        "Timur": {"red": 0.85, "green": 0.92, "blue": 0.98},
-        "Amir": {"red": 0.98, "green": 0.85, "blue": 0.85},
-        "Sardor": {"red": 0.85, "green": 0.98, "blue": 0.85},
-        "Ms. Davis": {"red": 0.98, "green": 0.95, "blue": 0.85},
-        "Mr. Wilson": {"red": 0.95, "green": 0.85, "blue": 0.98},
-        "Default": {"red": 0.95, "green": 0.95, "blue": 0.95}
-    }
     
     @staticmethod
     def load_meetings() -> list:

@@ -217,20 +217,6 @@ async def job_ask_recording(app: Application, meeting_config: dict):
     except Exception as e:
         logger.error(f"❌ Failed to send recording reminder: {e}")
 
-    # --- ATTENDANCE REMINDER ---
-    msg_attend = (
-        f"📋 Please mark who was present for "
-        f"<b>{group_name}</b> in CRM."
-    )
-
-    try:
-        await app.bot.send_message(
-            chat_id=teacher_id,
-            text=msg_attend,
-            parse_mode=ParseMode.HTML
-        )
-    except Exception as e:
-        logger.error(f"❌ Failed to send attendance reminder: {e}")
 
 async def job_keep_db_alive():
     """Heartbeat."""
@@ -306,6 +292,15 @@ def start_scheduler(app: Application):
         job_cleanup_expired_keys,
         CronTrigger(hour=3, minute=0, timezone=tz),
         id='cleanup_expired_keys',
+        replace_existing=True
+    )
+
+    # DB heartbeat every 10 minutes
+    scheduler.add_job(
+        job_keep_db_alive,
+        'interval',
+        minutes=10,
+        id='db_heartbeat',
         replace_existing=True
     )
 
