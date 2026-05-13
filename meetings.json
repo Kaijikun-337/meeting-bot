@@ -111,8 +111,8 @@
         "days": [
           "thursday"
         ],
-        "hour": 14,
-        "minute": 0
+        "hour": 15,
+        "minute": 25
       }
     },
     {
@@ -128,8 +128,8 @@
           "wednesday",
           "friday"
         ],
-        "hour": 14,
-        "minute": 0
+        "hour": 15,
+        "minute": 45
       }
     },
     {
@@ -377,7 +377,7 @@
       "schedule": {
         "days": [
           "monday",
-          "thursday"
+          "wednesday"
         ],
         "hour": 20,
         "minute": 0
@@ -428,7 +428,7 @@
       "schedule": {
         "days": [
           "monday",
-          "thursday"
+          "wednesday"
         ],
         "hour": 21,
         "minute": 0
