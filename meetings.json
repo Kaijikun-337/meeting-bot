@@ -367,11 +367,11 @@
       }
     },
     {
-      "id": "en_mttf_2000_group_akrom_aziz",
+      "id": "en_mttf_2000_group_akrom_misha",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Акром",
       "duration_minutes": 60,
-      "teacher_name": "Aziz",
+      "teacher_name": "Misha",
       "subject": "Английский",
       "group_name": "Group Akrom",
       "schedule": {
@@ -418,11 +418,11 @@
       }
     },
     {
-      "id": "en_mttf_2000_group_mansurovk_aziz",
+      "id": "en_mttf_2000_group_mansurovk_misha",
       "title": "Английский язык",
       "description": "Индивидуальное занятие по Английскому. \n👨‍🎓 Ученики : Камрон",
       "duration_minutes": 60,
-      "teacher_name": "Aziz",
+      "teacher_name": "Misha",
       "subject": "Английский",
       "group_name": "Group Mansurov K.",
       "schedule": {
