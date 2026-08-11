@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from telegram.ext import Application
 from app.config import Config
 from app.bot.handlers import register_handlers
@@ -21,13 +22,15 @@ def main():
     # 2. Initialize Database (Hybrid: SQLite locally, Postgres on Render)
     init_database()
     
-    # 3. Start Keep-Alive Server (Only needed on Render)
-    # We check if we are on Render by looking for the 'RENDER' env var (or just run it always)
+    # 3. Start Keep-Alive Server in a BACKGROUND THREAD
+    # This prevents Flask from blocking the Telegram bot from starting
     if os.getenv("RENDER") or os.getenv("DATABASE_URL"):
         try:
             from app.keep_alive import keep_alive
-            keep_alive()
-            print("🌍 Keep-Alive Server started.")
+            # Run Flask in a daemon thread so it doesn't block the main thread
+            flask_thread = threading.Thread(target=keep_alive, daemon=True)
+            flask_thread.start()
+            print("🌍 Keep-Alive Server started in background thread.")
         except Exception as e:
             print(f"⚠️ Could not start keep-alive: {e}")
 
