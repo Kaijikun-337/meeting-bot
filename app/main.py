@@ -23,27 +23,30 @@ def main():
     init_database()
     
     # 3. Start Keep-Alive Server in a BACKGROUND THREAD
-    # This prevents Flask from blocking the Telegram bot from starting
     if os.getenv("RENDER") or os.getenv("DATABASE_URL"):
         try:
             from app.keep_alive import keep_alive
-            # Run Flask in a daemon thread so it doesn't block the main thread
             flask_thread = threading.Thread(target=keep_alive, daemon=True)
             flask_thread.start()
             print("🌍 Keep-Alive Server started in background thread.")
         except Exception as e:
             print(f"⚠️ Could not start keep-alive: {e}")
 
-    # 4. Build Bot Application
+    # 4. Define post_init hook to start scheduler AFTER event loop is ready
+    async def post_init(application: Application) -> None:
+        start_scheduler(application)
+
+    # 5. Build Bot Application with post_init hook
     print("🤖 Building Bot Application...")
-    app = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
+    app = (
+        Application.builder()
+        .token(Config.TELEGRAM_BOT_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
     
-    # 5. Register Handlers (Commands, Messages, etc.)
+    # 6. Register Handlers (Commands, Messages, etc.)
     register_handlers(app)
-    
-    # 6. Start Scheduler (Async)
-    # This automatically starts the checking loop for lessons
-    start_scheduler(app)
     
     # 7. Run Bot (Blocks until Ctrl+C)
     print("✅ Bot is running! Press Ctrl+C to stop.")
