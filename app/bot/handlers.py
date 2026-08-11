@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    ConversationHandler, MessageHandler, filters, ContextTypes
+    ConversationHandler, MessageHandler, filters, ContextTypes, Filters
 )
 from app.bot.registration import (
     start_command, key_entered, cancel_registration,
@@ -32,6 +32,7 @@ from app.bot.language import register_language_handlers
 from app.bot.error_handler import error_handler
 from app.utils.localization import get_text, get_user_language
 from app.bot.homework import get_homework_conversation_handler
+from app.bot.payment_handler import handle_receipt_upload, handle_payment_callback
 
 # ═══════════════════════════════════════════════════════════
 # MULTILINGUAL BUTTON FILTERS
@@ -262,6 +263,7 @@ def register_handlers(app: Application):
     app.add_handler(edit_student_handler)
     app.add_handler(edit_teacher_handler)
     app.add_handler(delete_user_handler)
+    app.add_handler(MessageHandler(Filters.PHOTO | Filters.Document.ALL, handle_receipt_upload))
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))
@@ -269,6 +271,7 @@ def register_handlers(app: Application):
     app.add_handler(CommandHandler('status', status_command))
     app.add_handler(CommandHandler('help', help_command))
     app.add_handler(CommandHandler('users', list_users_command))
+    app.add_handler(CallbackQueryHandler(handle_payment_callback, pattern='^pay_'))
     # Language handlers
     register_language_handlers(app)
     

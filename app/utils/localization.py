@@ -481,6 +481,31 @@ TRANSLATIONS = {
         'ru': "👆 <i>Нажмите на ссылку, чтобы войти!</i>",
         'uz': "👆 <i>Kirish uchun havolani bosing!</i>"
     },
+    'payment_restricted': {
+        'en': '⚠️ <b>Lesson Access Restricted</b>\n\nYou have an unpaid balance for this month.\nAmount due: <b>{amount} UZS</b>\n\nPlease transfer the money and send a screenshot/photo of the receipt here. The admin will verify it and unlock your lessons.',
+        'ru': '⚠️ <b>Доступ к уроку ограничен</b>\n\nУ вас есть неоплаченный баланс за этот месяц.\nСумма к оплате: <b>{amount} UZS</b>\n\nПожалуйста, переведите деньги и отправьте скриншот/фото чека сюда. Администратор проверит его и разблокирует уроки.',
+        'uz': '⚠️ <b>Darsga kirish cheklangan</b>\n\nBu oy uchun to\'lanmagan qarzingiz bor.\nTo\'lov summasi: <b>{amount} UZS</b>\n\nIltimos, pulni o\'tkazing va chek skrinshotini/fotosini shu yerga yuboring. Admin tekshirib darslarni ochib beradi.'
+    },
+    'payment_pending': {
+        'en': '⏳ Your receipt is already waiting for admin approval. You will get access once it\'s verified.',
+        'ru': '⏳ Ваш чек уже ждет проверки администратора. Доступ будет открыт после проверки.',
+        'uz': '⏳ Chekingiz admin tasdig\'ini kutmoqda. Tasdiqlangandan so\'ng kirish ochiladi.'
+    },
+    'receipt_received': {
+        'en': '✅ Receipt received! The admin will review it shortly.',
+        'ru': '✅ Чек получен! Администратор скоро его проверит.',
+        'uz': '✅ Chek qabul qilindi! Admin tez orada tekshiradi.'
+    },
+    'payment_approved': {
+        'en': '🎉 Your payment has been approved! You now have access to lessons.',
+        'ru': '🎉 Ваш платеж подтвержден! Теперь у вас есть доступ к урокам.',
+        'uz': '🎉 To\'lovingiz tasdiqlandi! Endi darslarga kirishingiz mumkin.'
+    },
+    'payment_rejected': {
+        'en': '❌ Your payment was rejected. Please check with the administration or send a valid receipt.',
+        'ru': '❌ Ваш платеж отклонен. Пожалуйста, свяжитесь с администрацией или отправьте корректный чек.',
+        'uz': '❌ To\'lovingiz rad etildi. Iltimos, ma\'muriyat bilan bog\'laning yoki to\'g\'ri chek yuboring.'
+    }
 }
 
 def get_text(key: str, lang: str = 'en') -> str:

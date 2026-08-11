@@ -16,6 +16,8 @@ from app.services.user_service import (
 from app.database.db import get_connection
 from app.utils.localization import get_text, get_user_language
 
+from payments.gatekeeper import check_and_send_lesson_link
+
 logger = logging.getLogger(__name__)
 
 DAY_MAP = {
@@ -40,6 +42,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
     time_str = f"{sch.get('hour', 0):02d}:{sch.get('minute', 0):02d}"
 
     recipients = set()
+    teacher_ids = set()
     db_teacher_found = False
     current_teacher_name = json_teacher_name
     teacher = None
@@ -83,6 +86,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         if teacher and teacher.get('chat_id'):
             teacher_id = str(teacher['chat_id'])
             recipients.add(teacher_id)
+            teacher_ids.add(teacher_id)
             current_teacher_name = teacher.get('name', json_teacher_name)
             db_teacher_found = True
 
@@ -91,6 +95,7 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         json_id = meeting_config.get('teacher_chat_id') or meeting_config.get('chat_id')
         if json_id:
             recipients.add(str(json_id))
+            teacher_ids.add(str(json_id))
             logger.warning(f"⚠️ FALLBACK: Using manual JSON ID: {json_id}")
 
     # --- PHASE 3: STUDENTS ---
@@ -113,37 +118,49 @@ async def send_meeting_to_recipients(app: Application, meeting_config: dict, mee
         try:
             lang = get_user_language(chat_id)
 
-            header = get_text('lesson_alert_title', lang)
-            if prefix_key:
-                header = get_text(prefix_key, lang) + header
+            # IF TEACHER: Send full standard message
+            if chat_id in teacher_ids:
+                header = get_text('lesson_alert_title', lang)
+                if prefix_key:
+                    header = get_text(prefix_key, lang) + header
 
-            details = get_text('lesson_details', lang).format(
-                title=title, time=time_str, group=group_name,
-                desc=desc, subject=subject, teacher=current_teacher_name
-            )
+                details = get_text('lesson_details', lang).format(
+                    title=title, time=time_str, group=group_name,
+                    desc=desc, subject=subject, teacher=current_teacher_name
+                )
 
-            # Wrap link in <a> tag to guarantee clickability
-            join_section = get_text('lesson_join', lang).format(
-                link=f'<a href="{link}">{link}</a>'
-            )
-            footer = get_text('lesson_click_hint', lang)
+                join_section = get_text('lesson_join', lang).format(
+                    link=f'<a href="{link}">{link}</a>'
+                )
+                footer = get_text('lesson_click_hint', lang)
 
-            full_text = f"{header}\n\n{details}\n\n{join_section}\n\n{footer}"
+                full_text = f"{header}\n\n{details}\n\n{join_section}\n\n{footer}"
 
-            await app.bot.send_message(
-                chat_id=chat_id,
-                text=full_text,
-                parse_mode=ParseMode.HTML,
-                disable_web_page_preview=True
-            )
-            logger.info(f"✅ Sent link to {chat_id}")
+                await app.bot.send_message(
+                    chat_id=chat_id,
+                    text=full_text,
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True
+                )
+                logger.info(f"✅ Sent link to Teacher {chat_id}")
+
+            # IF STUDENT: Route through Payment Gatekeeper
+            else:
+                await check_and_send_lesson_link(
+                    bot=app.bot,
+                    student_chat_id=chat_id,
+                    group_name=group_name,
+                    jitsi_link=link,
+                    lang=lang
+                )
+                logger.info(f"✅ Processed student {chat_id} via Gatekeeper")
 
             # ⏱ Rate-limit safety: small delay between sends
             await asyncio.sleep(0.05)
 
         except Exception as e:
             logger.error(f"❌ Failed to send to {chat_id}: {e}")
-
+            
 async def job_send_lesson(app: Application, meeting_config: dict):
     """Send lesson link at start time."""
     logger.info(f"⏰ Creating meeting: {meeting_config['title']}")

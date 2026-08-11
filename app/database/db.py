@@ -163,6 +163,22 @@ def init_database():
         )
     """)
     
+    # 5. Student Payments
+    cursor.execute(f"""
+        CREATE TABLE IF NOT EXISTS student_payments (
+            id {pk_type},
+            student_chat_id TEXT NOT NULL,
+            group_name TEXT NOT NULL,
+            month_year TEXT NOT NULL,
+            amount_due INTEGER NOT NULL,
+            is_paid INTEGER DEFAULT 0,
+            receipt_status TEXT DEFAULT NULL,
+            paid_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_chat_id, group_name, month_year)
+        )
+    """)
+    
     conn.commit()
     conn.close()
     print("✅ Database initialized successfully.")
