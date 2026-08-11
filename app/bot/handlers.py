@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    ConversationHandler, MessageHandler, filters, ContextTypes, Filters
+    ConversationHandler, MessageHandler, filters, ContextTypes
 )
 from app.bot.registration import (
     start_command, key_entered, cancel_registration,
@@ -263,7 +263,7 @@ def register_handlers(app: Application):
     app.add_handler(edit_student_handler)
     app.add_handler(edit_teacher_handler)
     app.add_handler(delete_user_handler)
-    app.add_handler(MessageHandler(Filters.PHOTO | Filters.Document.ALL, handle_receipt_upload))
+    app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_receipt_upload))
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))
