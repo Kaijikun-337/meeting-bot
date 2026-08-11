@@ -16,7 +16,7 @@ from app.services.user_service import (
 from app.database.db import get_connection
 from app.utils.localization import get_text, get_user_language
 
-from payments.gatekeeper import check_and_send_lesson_link
+from app.payments.gatekeeper import check_and_send_lesson_link
 
 logger = logging.getLogger(__name__)
 
