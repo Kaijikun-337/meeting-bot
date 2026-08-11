@@ -41,10 +41,12 @@ def get_user_meetings(chat_id: str) -> list:
             return []
             
         group_names = [(g['group_name'] or "").strip().lower() for g in teacher_groups]
+        teacher_name_lower = (user.get('name') or "").strip().lower()
         
         return [
             m for m in all_meetings 
             if (m.get('group_name') or "").strip().lower() in group_names
+            and (m.get('teacher_name') or "").strip().lower() == teacher_name_lower
         ]
 
 def get_weekly_schedule(chat_id: str, weeks_ahead: int = 0) -> dict:
