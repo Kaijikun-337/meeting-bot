@@ -51,6 +51,7 @@ def get_menu_buttons(lang: str = 'en') -> list:
         get_text('btn_pay', lang),
         get_text('btn_status', lang),
         get_text('btn_help', lang),
+        get_text('btn_quiz', lang),
         get_text('btn_new_student', lang),
         get_text('btn_new_teacher', lang),
         get_text('btn_users', lang),
@@ -71,17 +72,17 @@ MENU_BUTTONS = [
     # English
     "📅 Schedule", "📅 Today", "💰 Pay",
     "📋 Status", "❓ Help", "👤 New Student", "👤 New Teacher", 
-    "👥 Users", "🌐 Language", "📚 Homework",
+    "👥 Users", "🌐 Language", "📚 Homework", "🧠 Test My English",
     
     # Russian
     "📅 Расписание", "📅 Сегодня", "💰 Оплата",
     "📋 Статус", "❓ Помощь", "👤 Новый ученик", "👤 Новый учитель",
-    "👥 Пользователи", "🌐 Язык", "📚 Домашнее задание",
+    "👥 Пользователи", "🌐 Язык", "📚 Домашнее задание", "🧠 Тест на уровень",
     
     # Uzbek
     "📅 Jadval", "📅 Bugun", "💰 To'lov",
     "📋 Holat", "❓ Yordam", "👤 Yangi o'quvchi", "👤 Yangi o'qituvchi",
-    "👥 Foydalanuvchilar", "🌐 Til", "📚 Uy vazifasi",
+    "👥 Foydalanuvchilar", "🌐 Til", "📚 Uy vazifasi", "🧠 Darajani aniqlash",
     
 ]
 
@@ -178,7 +179,8 @@ def language_keyboard():
 def unregistered_menu_keyboard(lang: str = 'en'):
     """Menu for users who are not registered yet: only Language button."""
     keyboard = [
-        [KeyboardButton(get_text('btn_language', lang))]
+        [KeyboardButton(get_text('btn_language', lang))],
+        [KeyboardButton(get_text('btn_quiz', lang))]
     ]
     return ReplyKeyboardMarkup(
         keyboard,

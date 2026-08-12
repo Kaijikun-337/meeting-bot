@@ -505,6 +505,11 @@ TRANSLATIONS = {
         'en': '❌ Your payment was rejected. Please check with the administration or send a valid receipt.',
         'ru': '❌ Ваш платеж отклонен. Пожалуйста, свяжитесь с администрацией или отправьте корректный чек.',
         'uz': '❌ To\'lovingiz rad etildi. Iltimos, ma\'muriyat bilan bog\'laning yoki to\'g\'ri chek yuboring.'
+    },
+        'btn_quiz': {
+        'en': '🧠 Test My English',
+        'ru': '🧠 Тест на уровень',
+        'uz': "🧠 Darajani aniqlash"
     }
 }
 

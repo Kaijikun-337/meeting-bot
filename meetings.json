@@ -342,6 +342,70 @@
         "hour": 13,
         "minute": 0
       }
+    },
+    {
+      "id": "math_t_1300_group_behruz_sardor",
+      "title": "Математика",
+      "description": "Индивидуальные занятия по математике. \n👨‍🎓 Ученики: Бехруз",
+      "duration_minutes": 60,
+      "teacher_name": "Sardor",
+      "subject": "Math",
+      "group_name": "Group Behruz",
+      "schedule": {
+        "days": [
+          "tuesday"
+        ],
+        "hour": 13,
+        "minute": 0
+      }
+    },
+    {
+      "id": "math_s_1200_group_behruz_sardor",
+      "title": "Математика",
+      "description": "Индивидуальные занятия по математике. \n👨‍🎓 Ученики: Бехруз",
+      "duration_minutes": 60,
+      "teacher_name": "Sardor",
+      "subject": "Math",
+      "group_name": "Group Behruz",
+      "schedule": {
+        "days": [
+          "saturday"
+        ],
+        "hour": 12,
+        "minute": 0
+      }
+    },
+    {
+      "id": "en_t_2000_group_anfisa_sardor",
+      "title": "Английский язык",
+      "description": "Индивидуальные занятия по английскому. \n👨‍🎓 Ученики: Анфиса",
+      "duration_minutes": 60,
+      "teacher_name": "Sardor",
+      "subject": "English",
+      "group_name": "Group Anfisa",
+      "schedule": {
+        "days": [
+          "thursday"
+        ],
+        "hour": 20,
+        "minute": 0
+      }
+    },
+    {
+      "id": "en_f_2000_group_anfisa_sardor",
+      "title": "Английский язык",
+      "description": "Индивидуальные занятия по английскому. \n👨‍🎓 Ученики: Анфиса",
+      "duration_minutes": 60,
+      "teacher_name": "Zarina",
+      "subject": "English",
+      "group_name": "Group Anfisa",
+      "schedule": {
+        "days": [
+          "friday"
+        ],
+        "hour": 13,
+        "minute": 0
+      }
     }
   ]
 }

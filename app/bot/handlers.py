@@ -33,6 +33,7 @@ from app.bot.error_handler import error_handler
 from app.utils.localization import get_text, get_user_language
 from app.bot.homework import get_homework_conversation_handler
 from app.bot.payment_handler import handle_receipt_upload, handle_payment_callback
+from app.bot.quiz import quiz_conv_handler, start_quiz, handle_quiz_answer, cancel_quiz, QUIZ_ACTIVE
 
 # ═══════════════════════════════════════════════════════════
 # MULTILINGUAL BUTTON FILTERS
@@ -251,6 +252,18 @@ def register_handlers(app: Application):
             per_message=False
         )
     
+    quiz_conv_handler = ConversationHandler(
+        entry_points=[
+            CommandHandler('quiz', start_quiz),
+            MessageHandler(filters.Regex('^🧠'), start_quiz)
+            ],
+        
+        states={
+            QUIZ_ACTIVE: [CallbackQueryHandler(handle_quiz_answer, pattern='^quiz_')]
+        },
+        fallbacks=[CommandHandler("cancel", cancel_quiz)]
+        )
+    
     # ═══════════════════════════════════════════════════════════
     # REGISTER HANDLERS (order matters!)
     # ═══════════════════════════════════════════════════════════
@@ -264,6 +277,7 @@ def register_handlers(app: Application):
     app.add_handler(edit_teacher_handler)
     app.add_handler(delete_user_handler)
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_receipt_upload))
+    app.add_handler(quiz_conv_handler)
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))
