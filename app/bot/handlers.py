@@ -268,6 +268,8 @@ def register_handlers(app: Application):
     # REGISTER HANDLERS (order matters!)
     # ═══════════════════════════════════════════════════════════
     
+    app.add_handler(quiz_conv_handler)
+    
     # Conversation handlers first
     app.add_handler(registration_handler)
     app.add_handler(new_student_handler)
@@ -277,7 +279,6 @@ def register_handlers(app: Application):
     app.add_handler(edit_teacher_handler)
     app.add_handler(delete_user_handler)
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.ALL, handle_receipt_upload))
-    app.add_handler(quiz_conv_handler)
     
     # Simple command handlers
     app.add_handler(CommandHandler('schedule', schedule_command))

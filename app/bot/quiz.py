@@ -1,16 +1,18 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, CommandHandler
+from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 from app.config import Config
 from app.utils.localization import get_user_language
 
 QUIZ_ACTIVE = 0
 
+VIDEO_URL = "https://www.w3schools.com/html/mov_bbb.mp4"
+
 # UI Texts (Multilingual)
 QUIZ_UI_TEXTS = {
-    'intro': {
-        'en': "🧠 <b>Quick English Level Test</b>\n\nLet's find out your English level! It's just 5 quick questions. Choose the correct missing word for each sentence.",
-        'ru': "🧠 <b>Быстрый тест на определение уровня</b>\n\nДавайте определим ваш уровень! Это всего 5 быстрых вопросов. Выберите правильное пропущенное слово в каждом предложении.",
-        'uz': "🧠 <b>Tezkor darajani aniqlash testi</b>\n\nKeling, sizning darajangizni aniqlaymiz! Bu atigi 5 ta tezkor savoldan iborat. Har bir gapda tushib qolgan to'g'ri so'zni tanlang."
+    'intro_video': {
+        'en': "🎥 <b>Please watch this short video.</b>\nOnce you've watched it, answer the 5 questions below to test your listening skills!",
+        'ru': "🎥 <b>Пожалуйста, посмотрите это короткое видео.</b>\nПосле просмотра ответьте на 5 вопросов ниже, чтобы проверить свои навыки аудирования!",
+        'uz': "🎥 <b>Iltimos, bu qisqani videoni tomosha qiling.</b>\nKo'rgach, tinglash qobiliyatingizni tekshirish uchun quyidagi 5 ta savolga javob bering!"
     },
     'correct': {
         'en': "✅ Correct!",
@@ -39,32 +41,32 @@ QUIZ_UI_TEXTS = {
     }
 }
 
-# Questions (Strictly English)
+# Questions based on the video (English only)
 QUIZ_QUESTIONS = [
     {
-        "q": "1. How long ___ you been learning English?",
-        "o": ["have", "has", "did", "are"],
-        "c": "have"
+        "q": "1. What animal is the main character of the video?",
+        "o": ["A cat", "A rabbit", "A dog", "A bear"],
+        "c": "A rabbit"
     },
     {
-        "q": "2. I wish I ___ more time to travel.",
-        "o": ["have", "had", "will have", "would have"],
-        "c": "had"
+        "q": "2. What is the rabbit looking at at the beginning of the video?",
+        "o": ["A clock", "A mirror", "A window", "A book"],
+        "c": "A clock"
     },
     {
-        "q": "3. She is the woman ___ car was stolen yesterday.",
-        "o": ["who", "which", "whose", "that"],
-        "c": "whose"
+        "q": "3. What happens after the rabbit looks at the clock?",
+        "o": ["He goes to sleep", "He starts running", "He eats a carrot", "He opens a door"],
+        "c": "He starts running"
     },
     {
-        "q": "4. By the time we arrived at the cinema, the movie ___.",
-        "o": ["started", "has started", "had started", "is starting"],
-        "c": "had started"
+        "q": "4. Who does the rabbit meet in the hallway?",
+        "o": ["A mouse", "A cat", "Another rabbit", "A bird"],
+        "c": "A cat"
     },
     {
-        "q": "5. Despite ___ very hard, he didn't pass the exam.",
-        "o": ["studying", "he studied", "to study", "studied"],
-        "c": "studying"
+        "q": "5. How does the video end?",
+        "o": ["They fight", "They run through a door", "They eat dinner", "They go outside"],
+        "c": "They run through a door"
     }
 ]
 
@@ -92,8 +94,20 @@ async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['quiz_score'] = 0
     context.user_data['quiz_index'] = 0
     
-    await update.message.reply_text(get_ui_text('intro', lang), parse_mode='HTML')
+    # 1. Send the video first
+    try:
+        await context.bot.send_video(
+            chat_id=chat_id,
+            video=VIDEO_URL,
+            caption=get_ui_text('intro_video', lang),
+            parse_mode='HTML'
+        )
+    except Exception as e:
+        # Fallback if video fails to send
+        print(f"Failed to send quiz video: {e}")
+        await update.message.reply_text(get_ui_text('intro_video', lang), parse_mode='HTML')
     
+    # 2. Ask the first question
     await send_question(update, context)
     return QUIZ_ACTIVE
 
@@ -154,9 +168,8 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result_text = get_ui_text('result', lang, score=score, total=len(QUIZ_QUESTIONS), level=level)
     await context.bot.send_message(chat_id=chat_id, text=result_text, parse_mode='HTML')
     
-    # Admin notification kept in English as requested
     admin_text = (
-        f"🧠 <b>New Lead Took The Quiz!</b>\n\n"
+        f"🧠 <b>New Lead Took The Video Quiz!</b>\n\n"
         f"Name: {user.full_name}\n"
         f"Username: @{user.username if user.username else 'N/A'}\n"
         f"Telegram ID: <code>{chat_id}</code>\n\n"
@@ -174,8 +187,13 @@ async def cancel_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(get_ui_text('cancelled', lang))
     return ConversationHandler.END
 
+# Updated ConversationHandler with Deep Link support
 quiz_conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("quiz", start_quiz)],
+    entry_points=[
+        CommandHandler("quiz", start_quiz),
+        MessageHandler(filters.Regex('^🧠'), start_quiz),
+        MessageHandler(filters.Regex('^/start quiz$'), start_quiz) # Deep Link!
+    ],
     states={
         QUIZ_ACTIVE: [CallbackQueryHandler(handle_quiz_answer, pattern='^quiz_')]
     },

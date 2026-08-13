@@ -510,7 +510,12 @@ TRANSLATIONS = {
         'en': '🧠 Test My English',
         'ru': '🧠 Тест на уровень',
         'uz': "🧠 Darajani aniqlash"
-    }
+    },
+    'lesson_starting': {
+        'en': '🎥 Your lesson is starting!\n\nJoin here: {link}',
+        'ru': '🎥 Ваш урок начинается!\n\nПрисоединиться здесь: {link}',
+        'uz': '🎥 Darsingiz boshlanmoqda!\n\nUshbu yerdan qo\'shiling: {link}'
+    },
 }
 
 def get_text(key: str, lang: str = 'en') -> str:
