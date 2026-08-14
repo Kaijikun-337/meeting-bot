@@ -1,5 +1,5 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, CommandHandler, MessageHandler, filters
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
 from app.config import Config
 from app.utils.localization import get_user_language
 import asyncio
@@ -171,11 +171,12 @@ async def send_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q_data = QUIZ_QUESTIONS[index]
     chat_id = update.effective_chat.id
     
+    # Build ReplyKeyboard with options
     keyboard = []
     for opt in q_data['o']:
-        keyboard.append([InlineKeyboardButton(opt, callback_data=f"quiz_{opt}")])
+        keyboard.append([KeyboardButton(opt)])
         
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
     
     # Send the Question Video with the text question as a caption
     await context.bot.send_video(
@@ -187,15 +188,17 @@ async def send_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    lang = get_user_language(str(update.effective_chat.id))
-    selected_opt = query.data.replace("quiz_", "")
+    text = update.message.text
     index = context.user_data['quiz_index']
     q_data = QUIZ_QUESTIONS[index]
+    lang = get_user_language(str(update.effective_chat.id))
     
-    is_correct = selected_opt == q_data['c']
+    # If user types random text instead of clicking a button
+    if text not in q_data['o']:
+        await update.message.reply_text(get_ui_text('use_buttons', lang))
+        return QUIZ_ACTIVE
+        
+    is_correct = text == q_data['c']
     
     if is_correct:
         context.user_data['quiz_score'] += 1
@@ -203,12 +206,8 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         feedback = get_ui_text('wrong', lang, ans=q_data['c'])
         
-    # Edit the message caption to show feedback and remove buttons
-    await query.edit_message_caption(
-        caption=f"{q_data['q']}\n\n{feedback}",
-        parse_mode='HTML',
-        reply_markup=None
-    )
+    # Send feedback as a normal text message
+    await update.message.reply_text(feedback, parse_mode='HTML')
         
     context.user_data['quiz_index'] += 1
     
@@ -232,7 +231,15 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_user_language(str(chat_id))
     
     result_text = get_ui_text('result', lang, score=score, total=total, level=level)
-    await context.bot.send_message(chat_id=chat_id, text=result_text, parse_mode='HTML')
+    
+    # Bring back the unregistered menu so they aren't stuck without a keyboard
+    from app.bot.keyboards import unregistered_menu_keyboard
+    await context.bot.send_message(
+        chat_id=chat_id, 
+        text=result_text, 
+        parse_mode='HTML', 
+        reply_markup=unregistered_menu_keyboard(lang)
+    )
     
     admin_text = (
         f"🧠 <b>New Lead Took The Video Quiz!</b>\n\n"
@@ -250,17 +257,19 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cancel_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_user_language(str(update.effective_chat.id))
-    await update.message.reply_text(get_ui_text('cancelled', lang))
+    from app.bot.keyboards import unregistered_menu_keyboard
+    await update.message.reply_text(get_ui_text('cancelled', lang), reply_markup=unregistered_menu_keyboard(lang))
     return ConversationHandler.END
 
 quiz_conv_handler = ConversationHandler(
     entry_points=[
         CommandHandler("quiz", start_quiz),
         MessageHandler(filters.Regex('^🧠'), start_quiz),
-        MessageHandler(filters.Regex('^/start quiz$'), start_quiz) # Deep Link support
+        MessageHandler(filters.Regex('^/start quiz$'), start_quiz)
     ],
     states={
-        QUIZ_ACTIVE: [CallbackQueryHandler(handle_quiz_answer, pattern='^quiz_')]
+        # Listen for text messages instead of callback queries
+        QUIZ_ACTIVE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quiz_answer)]
     },
     fallbacks=[CommandHandler("cancel", cancel_quiz)]
 )

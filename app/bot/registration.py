@@ -14,6 +14,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     lang = get_user_language(chat_id)
 
+    # --- NEW: Notify Admin about the new user ---
+    if chat_id != str(Config.ADMIN_CHAT_ID):
+        try:
+            user = update.effective_user
+            admin_notify_text = (
+                f"🚀 <b>New User Started the Bot</b>\n\n"
+                f"Name: {user.full_name}\n"
+                f"Username: @{user.username if user.username else 'N/A'}\n"
+                f"Telegram ID: <code>{chat_id}</code>"
+            )
+            await context.bot.send_message(
+                chat_id=Config.ADMIN_CHAT_ID, 
+                text=admin_notify_text, 
+                parse_mode='HTML'
+            )
+        except Exception as e:
+            print(f"Failed to notify admin about new start: {e}")
+    # -------------------------------------------
+
     # Check if admin
     if str(chat_id) == str(Config.ADMIN_CHAT_ID):
         await update.message.reply_text(
@@ -23,7 +42,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-        # Check if already registered
+    # Check if already registered
     if is_registered(chat_id):
         user = get_user(chat_id)
         is_teacher = (user['role'] == 'teacher')
