@@ -19,11 +19,6 @@ QUIZ_UI_TEXTS = {
         'uz': "✅ To'g'ri! Keyingisiga tayyorgarlik ko'ring..."
     },
     'wrong': {
-        'en': "❌ Wrong. The correct answer was: <b>{ans}</b>\n\nWatch the explanation video below.",
-        'ru': "❌ Неверно. Правильный ответ: <b>{ans}</b>\n\nПосмотрите видео с объяснением ниже.",
-        'uz': "❌ Noto'g'ri. To'g'ri javob: <b>{ans}</b>\n\nQuyidagi tushuntirish videosini tomosha qiling."
-    },
-    'wrong_no_video': {
         'en': "❌ Wrong. The correct answer was: <b>{ans}</b>",
         'ru': "❌ Неверно. Правильный ответ: <b>{ans}</b>",
         'uz': "❌ Noto'g'ri. To'g'ri javob: <b>{ans}</b>"
@@ -196,43 +191,24 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     
     lang = get_user_language(str(update.effective_chat.id))
-    chat_id = update.effective_chat.id
     selected_opt = query.data.replace("quiz_", "")
     index = context.user_data['quiz_index']
     q_data = QUIZ_QUESTIONS[index]
     
     is_correct = selected_opt == q_data['c']
-    ans_video = q_data.get('ans_video') # Returns None if 'ans_video' doesn't exist
     
     if is_correct:
         context.user_data['quiz_score'] += 1
         feedback = get_ui_text('correct', lang)
-        await query.edit_message_caption(
-            caption=f"{q_data['q']}\n\n{feedback}",
-            parse_mode='HTML',
-            reply_markup=None
-        )
     else:
-        if ans_video:
-            feedback = get_ui_text('wrong', lang, ans=q_data['c'])
-            await query.edit_message_caption(
-                caption=f"{q_data['q']}\n\n{feedback}",
-                parse_mode='HTML',
-                reply_markup=None
-            )
-            await context.bot.send_video(
-                chat_id=chat_id,
-                video=ans_video,
-                caption="📺 <i>Explanation</i>",
-                parse_mode='HTML'
-            )
-        else:
-            feedback = get_ui_text('wrong_no_video', lang, ans=q_data['c'])
-            await query.edit_message_caption(
-                caption=f"{q_data['q']}\n\n{feedback}",
-                parse_mode='HTML',
-                reply_markup=None
-            )
+        feedback = get_ui_text('wrong', lang, ans=q_data['c'])
+        
+    # Edit the message caption to show feedback and remove buttons
+    await query.edit_message_caption(
+        caption=f"{q_data['q']}\n\n{feedback}",
+        parse_mode='HTML',
+        reply_markup=None
+    )
         
     context.user_data['quiz_index'] += 1
     
