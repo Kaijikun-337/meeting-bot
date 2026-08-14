@@ -2,24 +2,28 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler, CommandHandler, MessageHandler, filters
 from app.config import Config
 from app.utils.localization import get_user_language
+import asyncio
 
 QUIZ_ACTIVE = 0
-
-VIDEO_URL = "https://www.w3schools.com/html/mov_bbb.mp4"
 
 # UI Texts (Multilingual)
 QUIZ_UI_TEXTS = {
     'intro_video': {
-        'en': "🎥 <b>Please watch this short video.</b>\nOnce you've watched it, answer the 5 questions below to test your listening skills!",
-        'ru': "🎥 <b>Пожалуйста, посмотрите это короткое видео.</b>\nПосле просмотра ответьте на 5 вопросов ниже, чтобы проверить свои навыки аудирования!",
-        'uz': "🎥 <b>Iltimos, bu qisqani videoni tomosha qiling.</b>\nKo'rgach, tinglash qobiliyatingizni tekshirish uchun quyidagi 5 ta savolga javob bering!"
+        'en': "🎥 <b>Video Quiz Time!</b>\n\nWatch the video, then answer the question. If you get it wrong, we'll show you a video with the correct answer. Let's go!",
+        'ru': "🎥 <b>Время видео-теста!</b>\n\nПосмотрите видео и ответьте на вопрос. Если ошибетесь, мы покажем видео с правильным ответом. Поехали!",
+        'uz': "🎥 <b>Video test vaqti!</b>\n\nVideoni tomosha qiling va savolga javob bering. Xato qilsangiz, to'g'ri javobli videoni ko'rsatamiz. Boshladik!"
     },
     'correct': {
-        'en': "✅ Correct!",
-        'ru': "✅ Правильно!",
-        'uz': "✅ To'g'ri!"
+        'en': "✅ Correct! Get ready for the next one...",
+        'ru': "✅ Правильно! Готовьтесь к следующему...",
+        'uz': "✅ To'g'ri! Keyingisiga tayyorgarlik ko'ring..."
     },
     'wrong': {
+        'en': "❌ Wrong. The correct answer was: <b>{ans}</b>\n\nWatch the explanation video below.",
+        'ru': "❌ Неверно. Правильный ответ: <b>{ans}</b>\n\nПосмотрите видео с объяснением ниже.",
+        'uz': "❌ Noto'g'ri. To'g'ri javob: <b>{ans}</b>\n\nQuyidagi tushuntirish videosini tomosha qiling."
+    },
+    'wrong_no_video': {
         'en': "❌ Wrong. The correct answer was: <b>{ans}</b>",
         'ru': "❌ Неверно. Правильный ответ: <b>{ans}</b>",
         'uz': "❌ Noto'g'ri. To'g'ri javob: <b>{ans}</b>"
@@ -41,43 +45,109 @@ QUIZ_UI_TEXTS = {
     }
 }
 
-# Questions based on the video (English only)
+# ┌───────────────────────────────────────────────────────────┐
+# │  PASTE YOUR VIDEO FILE IDs AND QUESTIONS HERE             │
+# └───────────────────────────────────────────────────────────┘
+
 QUIZ_QUESTIONS = [
     {
-        "q": "1. What animal is the main character of the video?",
-        "o": ["A cat", "A rabbit", "A dog", "A bear"],
-        "c": "A rabbit"
+        "q_video": "BAACAgIAAxkBAAMXan7aDrEkXdms_pU_zTXbh9t1dQgAAkSjAAKpbvhLwhzJlATe4mY9BA",
+        "q": "1. Rob is from ____",
+        "o": ["the UK", "the USA", "Russia", "Poland"],
+        "c": "the UK"
     },
     {
-        "q": "2. What is the rabbit looking at at the beginning of the video?",
-        "o": ["A clock", "A mirror", "A window", "A book"],
-        "c": "A clock"
+        "q_video": "BAACAgIAAxkBAAMYan7aDpg5fG5AojbmRj91CtWbmq8AAkWjAAKpbvhLVCJX-sg3PCw9BA",
+        "q": "2. When does Rob think Jenny arrives in London?",
+        "o": ["On 20th March", "On 12th of March", "Next week", "He doesn't know"],
+        "c": "On 12th of March"
     },
     {
-        "q": "3. What happens after the rabbit looks at the clock?",
-        "o": ["He goes to sleep", "He starts running", "He eats a carrot", "He opens a door"],
-        "c": "He starts running"
+        "q_video": "BAACAgIAAxkBAAMZan7aDsCBB0ZsWXBeqFFUDURGEjcAAkajAAKpbvhLg3eNiBXJa349BA",
+        "q": "3. He's in Poland _____",
+        "o": ["on holiday", "for work", "on business", "for fun"],
+        "c": "for work"
     },
     {
-        "q": "4. Who does the rabbit meet in the hallway?",
-        "o": ["A mouse", "A cat", "Another rabbit", "A bird"],
-        "c": "A cat"
+        "q_video": "BAACAgIAAxkBAAMVan7aDocBbghkTFprjXNcSnps0QcAAkKjAAKpbvhLxwvmWNiZp6Q9BA",
+        "q": "4. How old is Ben?",
+        "o": ["25", "23", "24", "26"],
+        "c": "25"
     },
     {
-        "q": "5. How does the video end?",
-        "o": ["They fight", "They run through a door", "They eat dinner", "They go outside"],
-        "c": "They run through a door"
+        "q_video": "BAACAgIAAxkBAAMWan7aDoJ39JCv-6-xkcvHiNwFY2wAAkOjAAKpbvhLGrAfNHJmzks9BA",
+        "q": "5. Ben likes Izzy's _____",
+        "o": ["coat", "T-shirt", "jumper", "jacket"],
+        "c": "jacket"
+    },
+    {
+        "q_video": "BAACAgIAAxkBAAMOan7aDjSTXzbU3D8KAXfOcCHirk4AAjujAAKpbvhLxH0a-YBv1hQ9BA",
+        "q": "6. Izzy says Ben _____ to wear a helmet.",
+        "o": ["needs", "doesn't need", "need", "hasn't"],
+        "c": "needs"
+    },
+    {
+        "q_video": "BAACAgIAAxkBAAMPan7aDoY18OdPDoEzyAyMaOt8uXAAAj2jAAKpbvhLF4AwpKRKoe09BA",
+        "q": "7. Carla is ______ when Ben hurts his back.",
+        "o": ["helpful", "concerned", "annoyed", "surprised"],
+        "c": "helpful"
+    },
+    {
+        "q_video": "BAACAgIAAxkBAAMQan7aDokAAesHNd876eeJtfJ50ZsNAAI8owACqW74SwpAClS8YBoAAT0E",
+        "q": "8. How much does Ben think the shoes are?",
+        "o": ["£90.95", "£95.90", "£90.50", "£19.95"],
+        "c": "£90.95"
+    },
+    {
+        "q_video": "BAACAgIAAxkBAAMRan7aDlE1DGcy2XhOr80Mk8ZT6HcAAj6jAAKpbvhLHBsCETDYM9E9BA",
+        "q": "9. Ben has _____ memories of the dinner at the restaurant.",
+        "o": ["bad", "good", "fond", "neutral"],
+        "c": "bad"
+    },
+    {
+        "q_video": "BAACAgIAAxkBAAMSan7aDqM2C-tdAeJMrq6L1jkgL84AAkCjAAKpbvhLWyIyTKOaoFU9BA",
+        "q": "10. Carla _____ angry with Ben for being late.",
+        "o": ["isn't", "is", "aren't", "be"],
+        "c": "isn't"
+    },
+    {
+        "q_video": "BAACAgIAAxkBAAMTan7aDrFesgiNn3ijildCxFftASgAAj-jAAKpbvhL5mtgHk9hRkA9BA",
+        "q": "11. Izzy is angry with herself because ...",
+        "o": [
+            "she trusted Max too much",
+            "she gave a bad presentation",
+            "she took poor photos",
+            "she forgot her notes"
+        ],
+        "c": "she trusted Max too much"
+    },
+    {
+        "q_video": "BAACAgIAAxkBAAMUan7aDrL7ClsraZpeYWzn_EzIIxQAAkGjAAKpbvhLVQ6HE1v-4TQ9BA",
+        "q": "12. How did Pamela react to Ben's photos?",
+        "o": [
+            "She was amazed",
+            "She didn't like them",
+            "She was disappointed",
+            "She barely noticed them"
+        ],
+        "c": "She was amazed"
     }
+    
 ]
+
+# ┌───────────────────────────────────────────────────────────┐
+# │  CORE LOGIC                                               │
+# └───────────────────────────────────────────────────────────┘
 
 def get_ui_text(key, lang, **kwargs):
     text = QUIZ_UI_TEXTS.get(key, {}).get(lang, QUIZ_UI_TEXTS.get(key, {}).get('en', ''))
     return text.format(**kwargs)
 
-def get_level(score: int) -> str:
-    if score <= 1:
+def get_level(score: int, total: int) -> str:
+    percentage = (score / total) * 100 if total > 0 else 0
+    if percentage <= 33:
         return "A1-A2 (Beginner / Elementary)"
-    elif score <= 3:
+    elif percentage <= 66:
         return "B1 (Intermediate)"
     else:
         return "B2-C1 (Upper-Intermediate / Advanced)"
@@ -94,18 +164,8 @@ async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['quiz_score'] = 0
     context.user_data['quiz_index'] = 0
     
-    # 1. Send the video first
-    try:
-        await context.bot.send_video(
-            chat_id=chat_id,
-            video=VIDEO_URL,
-            caption=get_ui_text('intro_video', lang),
-            parse_mode='HTML'
-        )
-    except Exception as e:
-        # Fallback if video fails to send
-        print(f"Failed to send quiz video: {e}")
-        await update.message.reply_text(get_ui_text('intro_video', lang), parse_mode='HTML')
+    # 1. Send intro text
+    await update.message.reply_text(get_ui_text('intro_video', lang), parse_mode='HTML')
     
     # 2. Ask the first question
     await send_question(update, context)
@@ -114,6 +174,7 @@ async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     index = context.user_data['quiz_index']
     q_data = QUIZ_QUESTIONS[index]
+    chat_id = update.effective_chat.id
     
     keyboard = []
     for opt in q_data['o']:
@@ -121,9 +182,11 @@ async def send_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text=f"<b>{q_data['q']}</b>",
+    # Send the Question Video with the text question as a caption
+    await context.bot.send_video(
+        chat_id=chat_id,
+        video=q_data['q_video'],
+        caption=f"<b>{q_data['q']}</b>",
         parse_mode='HTML',
         reply_markup=reply_markup
     )
@@ -133,22 +196,48 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer()
     
     lang = get_user_language(str(update.effective_chat.id))
+    chat_id = update.effective_chat.id
     selected_opt = query.data.replace("quiz_", "")
     index = context.user_data['quiz_index']
     q_data = QUIZ_QUESTIONS[index]
     
-    if selected_opt == q_data['c']:
+    is_correct = selected_opt == q_data['c']
+    ans_video = q_data.get('ans_video') # Returns None if 'ans_video' doesn't exist
+    
+    if is_correct:
         context.user_data['quiz_score'] += 1
         feedback = get_ui_text('correct', lang)
+        await query.edit_message_caption(
+            caption=f"{q_data['q']}\n\n{feedback}",
+            parse_mode='HTML',
+            reply_markup=None
+        )
     else:
-        feedback = get_ui_text('wrong', lang, ans=q_data['c'])
+        if ans_video:
+            feedback = get_ui_text('wrong', lang, ans=q_data['c'])
+            await query.edit_message_caption(
+                caption=f"{q_data['q']}\n\n{feedback}",
+                parse_mode='HTML',
+                reply_markup=None
+            )
+            await context.bot.send_video(
+                chat_id=chat_id,
+                video=ans_video,
+                caption="📺 <i>Explanation</i>",
+                parse_mode='HTML'
+            )
+        else:
+            feedback = get_ui_text('wrong_no_video', lang, ans=q_data['c'])
+            await query.edit_message_caption(
+                caption=f"{q_data['q']}\n\n{feedback}",
+                parse_mode='HTML',
+                reply_markup=None
+            )
         
-    await query.edit_message_text(
-        text=f"{q_data['q']}\n\n{feedback}",
-        parse_mode='HTML'
-    )
-    
     context.user_data['quiz_index'] += 1
+    
+    # Small pause before next question for better UX
+    await asyncio.sleep(1.5)
     
     if context.user_data['quiz_index'] < len(QUIZ_QUESTIONS):
         await send_question(update, context)
@@ -160,12 +249,13 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     score = context.user_data['quiz_score']
-    level = get_level(score)
+    total = len(QUIZ_QUESTIONS)
+    level = get_level(score, total)
     user = update.effective_user
     chat_id = update.effective_chat.id
     lang = get_user_language(str(chat_id))
     
-    result_text = get_ui_text('result', lang, score=score, total=len(QUIZ_QUESTIONS), level=level)
+    result_text = get_ui_text('result', lang, score=score, total=total, level=level)
     await context.bot.send_message(chat_id=chat_id, text=result_text, parse_mode='HTML')
     
     admin_text = (
@@ -173,7 +263,7 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Name: {user.full_name}\n"
         f"Username: @{user.username if user.username else 'N/A'}\n"
         f"Telegram ID: <code>{chat_id}</code>\n\n"
-        f"Score: {score}/{len(QUIZ_QUESTIONS)}\n"
+        f"Score: {score}/{total}\n"
         f"Level: <b>{level}</b>"
     )
     
@@ -187,12 +277,11 @@ async def cancel_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(get_ui_text('cancelled', lang))
     return ConversationHandler.END
 
-# Updated ConversationHandler with Deep Link support
 quiz_conv_handler = ConversationHandler(
     entry_points=[
         CommandHandler("quiz", start_quiz),
         MessageHandler(filters.Regex('^🧠'), start_quiz),
-        MessageHandler(filters.Regex('^/start quiz$'), start_quiz) # Deep Link!
+        MessageHandler(filters.Regex('^/start quiz$'), start_quiz) # Deep Link support
     ],
     states={
         QUIZ_ACTIVE: [CallbackQueryHandler(handle_quiz_answer, pattern='^quiz_')]
