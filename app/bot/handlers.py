@@ -33,7 +33,7 @@ from app.bot.error_handler import error_handler
 from app.utils.localization import get_text, get_user_language
 from app.bot.homework import get_homework_conversation_handler
 from app.bot.payment_handler import handle_receipt_upload, handle_payment_callback
-from app.bot.quiz import start_quiz, handle_quiz_answer, cancel_quiz, QUIZ_ACTIVE
+from app.bot.quiz import start_quiz, handle_quiz_answer, cancel_quiz
 
 # ═══════════════════════════════════════════════════════════
 # MULTILINGUAL BUTTON FILTERS
