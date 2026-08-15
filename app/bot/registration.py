@@ -2,7 +2,7 @@ from telegram import Update, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
 from app.services.user_service import activate_user, is_registered, get_user
 from app.config import Config
-from app.bot.keyboards import main_menu_keyboard
+from app.bot.keyboards import main_menu_keyboard, unregistered_menu_keyboard
 from app.utils.localization import get_user_language, get_text, set_user_language
 from app.database.db import get_connection
 
@@ -82,7 +82,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         get_text('welcome_message', lang),
         parse_mode='HTML',
-        reply_markup=ReplyKeyboardRemove()
+        reply_markup=unregistered_menu_keyboard(lang)
     )
 
     return ENTERING_KEY

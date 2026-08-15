@@ -56,7 +56,27 @@ QUIZ_UI_TEXTS = {
         'en': "✅ Thank you! Our manager will contact you soon.",
         'ru': "✅ Спасибо! Наш менеджер скоро свяжется с вами.",
         'uz': "✅ Rahmat! Menejerimiz tez orada siz bilan bog'lanadi."
-    }
+    },
+        'price_list': {
+        'en': "💰 <b>Price List</b>\n\nPlease choose a plan you are interested in:\n\n👥 Group (8-10 students): 750,000 UZS/month\n👥 Mini-Group (4 students): 1,200,000 UZS/month\n👤 Individual (1-on-1): 2,500,000 UZS/month",
+        'ru': "💰 <b>Прайс-лист</b>\n\nПожалуйста, выберите тариф, который вас интересует:\n\n👥 Группа (8-10 учеников): 750,000 UZS/мес\n👥 Мини-группа (4 учеников): 1,200,000 UZS/мес\n👤 Индивидуально (1-на-1): 2,500,000 UZS/мес",
+        'uz': "💰 <b>Narxlar ro'yxati</b>\n\nIltimos, qiziqqan tarifni tanlang:\n\n👥 Guruh (8-10 o'quvchilar): 750,000 UZS/oy\n👥 Mini-guruh (4 o'quvchilar): 1,200,000 UZS/oy\n👤 Individual (1-dan 1-ga): 2,500,000 UZS/oy"
+    },
+    'plan_group': {
+        'en': '👥 Group',
+        'ru': '👥 Группа',
+        'uz': '👥 Guruh'
+    },
+    'plan_mini_group': {
+        'en': '👥 Mini-Group',
+        'ru': '👥 Мини-группа',
+        'uz': '👥 Mini-guruh'
+    },
+    'plan_individual': {
+        'en': '👤 Individual',
+        'ru': '👤 Индивидуально',
+        'uz': '👤 Individual'
+    },
 }
 
 # ┌───────────────────────────────────────────────────────────┐
@@ -318,7 +338,6 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     weak_topics = context.user_data.get('weak_topics', [])
     
-    # Translate topics and format as a bulleted list
     if weak_topics:
         translated_topics = []
         for topic in weak_topics:
@@ -330,25 +349,104 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     result_text = get_ui_text('result', lang, score=score, total=total, level=level, weak_topics=weak_str)
     
-    from app.bot.keyboards import unregistered_menu_keyboard
     from telegram import ReplyKeyboardRemove
-    
-    # 1. Send the result text first
     await context.bot.send_message(
         chat_id=chat_id, 
         text=result_text, 
         parse_mode='HTML',
-        reply_markup=ReplyKeyboardRemove() # Remove the quiz answer keyboard
+        reply_markup=ReplyKeyboardRemove()
     )
     
-    # 2. Send Admin notification
+    # SAVE DATA TO SEND TO ADMIN LATER
+    context.user_data['quiz_score'] = score
+    context.user_data['quiz_total'] = total
+    context.user_data['quiz_level'] = level
+    context.user_data['quiz_weak_str'] = weak_str
+    context.user_data[QUIZ_ACTIVE_KEY] = False
+    context.user_data['awaiting_plan'] = True
+    
+    # SHOW PRICE LIST & PLAN BUTTONS
+    from telegram import ReplyKeyboardMarkup, KeyboardButton
+    keyboard = [
+        [KeyboardButton(get_ui_text('plan_group', lang))],
+        [KeyboardButton(get_ui_text('plan_mini_group', lang))],
+        [KeyboardButton(get_ui_text('plan_individual', lang))]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+    
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=get_ui_text('price_list', lang),
+        parse_mode='HTML',
+        reply_markup=reply_markup
+    )
+
+async def handle_plan_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.user_data.get('awaiting_plan', False):
+        return
+    
+    text = update.message.text
+    lang = get_user_language(str(update.effective_chat.id))
+    user = update.effective_user
+    
+    # Map the button text back to a standard plan name
+    plans = {
+        get_ui_text('plan_group', lang): 'Group',
+        get_ui_text('plan_mini_group', lang): 'Mini-Group',
+        get_ui_text('plan_individual', lang): 'Individual'
+    }
+    
+    selected_plan = plans.get(text)
+    if not selected_plan:
+        return # Not a plan button, let other handlers process
+        
+    context.user_data['awaiting_plan'] = False
+    context.user_data['selected_plan'] = selected_plan
+    
+    # If they don't have a username, ask for phone before sending report
+    if not user.username:
+        context.user_data['awaiting_phone'] = True
+        from telegram import ReplyKeyboardMarkup, KeyboardButton
+        keyboard = [[KeyboardButton(get_ui_text('share_phone_btn', lang), request_contact=True)]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+        
+        await update.message.reply_text(
+            get_ui_text('phone_request', lang),
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
+    else:
+        # They have a username, send report immediately
+        await send_final_report_and_finish(update, context)
+        
+    raise ApplicationHandlerStop()
+
+async def send_final_report_and_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+    lang = get_user_language(str(chat_id))
+    
+    score = context.user_data.get('quiz_score', 0)
+    total = context.user_data.get('quiz_total', 0)
+    level = context.user_data.get('quiz_level', 'N/A')
+    weak_str = context.user_data.get('quiz_weak_str', 'N/A')
+    selected_plan = context.user_data.get('selected_plan', 'N/A')
+    phone = context.user_data.get('phone_number', None)
+    
+    # Build Admin Report
     admin_text = (
         f"🧠 <b>New Lead Took The Video Quiz!</b>\n\n"
         f"Name: {user.full_name}\n"
         f"Username: @{user.username if user.username else 'N/A'}\n"
-        f"Telegram ID: <code>{chat_id}</code>\n\n"
-        f"Score: {score}/{total}\n"
+        f"Telegram ID: <code>{chat_id}</code>\n"
+    )
+    if phone:
+        admin_text += f"Phone: <code>{phone}</code>\n"
+        
+    admin_text += (
+        f"\nScore: {score}/{total}\n"
         f"Level: <b>{level}</b>\n"
+        f"Selected Plan: <b>{selected_plan}</b>\n"
         f"Weak Topics:\n{weak_str}"
     )
     
@@ -357,40 +455,21 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         print(f"Failed to send quiz result to admin: {e}")
         
-    context.user_data[QUIZ_ACTIVE_KEY] = False
-    
-    # 3. Check if user has a username. If not, ask for phone number
-    if not user.username:
-        context.user_data['awaiting_phone'] = True
-        
-        from telegram import ReplyKeyboardMarkup, KeyboardButton
-        keyboard = [[KeyboardButton(get_ui_text('share_phone_btn', lang), request_contact=True)]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
-        
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=get_ui_text('phone_request', lang),
-            parse_mode='HTML',
-            reply_markup=reply_markup
-        )
-    else:
-        # They have a username, just bring back the main menu
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="👍",
-            reply_markup=unregistered_menu_keyboard(lang)
-        )
+    # Restore menu for user
+    from app.bot.keyboards import unregistered_menu_keyboard
+    await context.bot.send_message(
+        chat_id=chat_id, 
+        text=get_ui_text('phone_received', lang), 
+        parse_mode='HTML', 
+        reply_markup=unregistered_menu_keyboard(lang)
+    )
+    context.user_data['awaiting_phone'] = False
 
 async def handle_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # If bot isn't waiting for a phone, ignore this message
     if not context.user_data.get('awaiting_phone', False):
         return
     
     message = update.message
-    user = update.effective_user
-    chat_id = update.effective_chat.id
-    lang = get_user_language(str(chat_id))
-    
     phone_number = None
     if message.contact:
         phone_number = message.contact.phone_number
@@ -398,34 +477,17 @@ async def handle_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE
         phone_number = message.text
         
     if phone_number:
+        context.user_data['phone_number'] = phone_number
         context.user_data['awaiting_phone'] = False
-        from app.bot.keyboards import unregistered_menu_keyboard
-        
-        # Send Admin the phone number
-        admin_phone_text = (
-            f"📞 <b>Phone Number Received</b>\n\n"
-            f"From: {user.full_name}\n"
-            f"Telegram ID: <code>{chat_id}</code>\n"
-            f"Phone: <code>{phone_number}</code>"
-        )
-        try:
-            await context.bot.send_message(chat_id=Config.ADMIN_CHAT_ID, text=admin_phone_text, parse_mode='HTML')
-        except Exception as e:
-            print(f"Failed to send phone to admin: {e}")
-            
-        # Reply to user and restore menu
-        await message.reply_text(
-            get_ui_text('phone_received', lang), 
-            parse_mode='HTML', 
-            reply_markup=unregistered_menu_keyboard(lang)
-        )
+        await send_final_report_and_finish(update, context)
         raise ApplicationHandlerStop()
 
 async def cancel_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get(QUIZ_ACTIVE_KEY, False) or context.user_data.get('awaiting_phone', False):
+    if context.user_data.get(QUIZ_ACTIVE_KEY, False) or context.user_data.get('awaiting_phone', False) or context.user_data.get('awaiting_plan', False):
         lang = get_user_language(str(update.effective_chat.id))
         from app.bot.keyboards import unregistered_menu_keyboard
         context.user_data[QUIZ_ACTIVE_KEY] = False
         context.user_data['awaiting_phone'] = False
+        context.user_data['awaiting_plan'] = False
         await update.message.reply_text(get_ui_text('cancelled', lang), reply_markup=unregistered_menu_keyboard(lang))
         raise ApplicationHandlerStop()
