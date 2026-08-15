@@ -46,12 +46,12 @@ def main_menu_keyboard(is_admin: bool = False, is_teacher: bool = False, lang: s
 def get_menu_buttons(lang: str = 'en') -> list:
     """Get list of menu button texts for detection - localized."""
     return [
+        get_text('btn_start_register', lang),  # <-- ADDED
         get_text('btn_schedule', lang),
         get_text('btn_today', lang),
-        get_text('btn_pay', lang),
         get_text('btn_status', lang),
-        get_text('btn_help', lang),
         get_text('btn_quiz', lang),
+        get_text('btn_help', lang),
         get_text('btn_new_student', lang),
         get_text('btn_new_teacher', lang),
         get_text('btn_users', lang),
@@ -70,20 +70,19 @@ def get_all_menu_buttons() -> list:
 # Legacy - keep for backward compatibility and menu_button_filter
 MENU_BUTTONS = [
     # English
-    "📅 Schedule", "📅 Today", "💰 Pay",
+    "🚀 Start / Register", "📅 Schedule", "📅 Today", "💰 Pay",
     "📋 Status", "❓ Help", "👤 New Student", "👤 New Teacher", 
     "👥 Users", "🌐 Language", "📚 Homework", "🧠 Test My English",
     
     # Russian
-    "📅 Расписание", "📅 Сегодня", "💰 Оплата",
+    "🚀 Старт / Регистрация", "📅 Расписание", "📅 Сегодня", "💰 Оплата",
     "📋 Статус", "❓ Помощь", "👤 Новый ученик", "👤 Новый учитель",
     "👥 Пользователи", "🌐 Язык", "📚 Домашнее задание", "🧠 Тест на уровень",
     
     # Uzbek
-    "📅 Jadval", "📅 Bugun", "💰 To'lov",
+    "🚀 Boshlash / Ro'yxatdan o'tish", "📅 Jadval", "📅 Bugun", "💰 To'lov",
     "📋 Holat", "❓ Yordam", "👤 Yangi o'quvchi", "👤 Yangi o'qituvchi",
     "👥 Foydalanuvchilar", "🌐 Til", "📚 Uy vazifasi", "🧠 Darajani aniqlash",
-    
 ]
 
 # ═══════════════════════════════════════════════════════════
@@ -177,10 +176,11 @@ def language_keyboard():
     return InlineKeyboardMarkup(buttons)
 
 def unregistered_menu_keyboard(lang: str = 'en'):
-    """Menu for users who are not registered yet: only Language button."""
+    """Menu for users who are not registered yet."""
     keyboard = [
-        [KeyboardButton(get_text('btn_language', lang))],
-        [KeyboardButton(get_text('btn_quiz', lang))]
+        [KeyboardButton(get_text('btn_start_register', lang))],
+        [KeyboardButton(get_text('btn_quiz', lang))],
+        [KeyboardButton(get_text('btn_language', lang))]
     ]
     return ReplyKeyboardMarkup(
         keyboard,

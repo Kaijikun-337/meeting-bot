@@ -167,9 +167,15 @@ def register_handlers(app: Application):
     
     # Registration conversation
     registration_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start_command)],
+        entry_points=[
+            CommandHandler('start', start_command),
+            MessageHandler(filters.Regex('^🚀'), start_command)  # <-- CATCHES THE NEW BUTTON
+        ],
         states={
-            ENTERING_KEY: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, key_entered)]
+            ENTERING_KEY: [
+                MessageHandler(filters.Regex('^🚀'), start_command),  # <-- RESTARTS REGISTRATION IF CLICKED AGAIN
+                MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, key_entered)
+            ]
         },
         fallbacks=common_fallbacks,
         per_message=False

@@ -516,6 +516,11 @@ TRANSLATIONS = {
         'ru': '🎥 Ваш урок начинается!\n\nПрисоединиться здесь: {link}',
         'uz': '🎥 Darsingiz boshlanmoqda!\n\nUshbu yerdan qo\'shiling: {link}'
     },
+        'btn_start_register': {
+        'en': '🚀 Start / Register',
+        'ru': '🚀 Старт / Регистрация',
+        'uz': "🚀 Boshlash / Ro'yxatdan o'tish"
+    },
 }
 
 def get_text(key: str, lang: str = 'en') -> str:

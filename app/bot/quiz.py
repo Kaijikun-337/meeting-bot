@@ -23,9 +23,9 @@ QUIZ_UI_TEXTS = {
         'uz': "❌ Noto'g'ri. To'g'ri javob: <b>{ans}</b>"
     },
     'result': {
-        'en': "🎉 <b>Quiz Complete!</b>\n\nYour score: <b>{score}/{total}</b>\nYour estimated level: <b>{level}</b>\n\nOur manager will contact you shortly to discuss the best group for you!",
-        'ru': "🎉 <b>Тест завершен!</b>\n\nВаш результат: <b>{score}/{total}</b>\nВаш примерный уровень: <b>{level}</b>\n\nНаш менеджер скоро свяжется с вами, чтобы обсудить подходящую группу!",
-        'uz': "🎉 <b>Test yakunlandi!</b>\n\nSizning balingiz: <b>{score}/{total}</b>\nTaxminiy darajangiz: <b>{level}</b>\n\nMenejerimiz sizga mos guruhni muhokama qilish uchun tez orada bog'lanadi!"
+        'en': "🎉 <b>Quiz Complete!</b>\n\nYour score: <b>{score}/{total}</b>\nYour estimated level: <b>{level}</b>\n\nAreas to improve: <i>{weak_topics}</i>\n\nOur manager will contact you shortly to discuss the best group for you!",
+        'ru': "🎉 <b>Тест завершен!</b>\n\nВаш результат: <b>{score}/{total}</b>\nВаш примерный уровень: <b>{level}</b>\n\nЗоны для улучшения: <i>{weak_topics}</i>\n\nНаш менеджер скоро свяжется с вами, чтобы обсудить подходящую группу!",
+        'uz': "🎉 <b>Test yakunlandi!</b>\n\nSizning balingiz: <b>{score}/{total}</b>\nTaxminiy darajangiz: <b>{level}</b>\n\nYaxshilash kerak bo'lgan yo'nalishlar: <i>{weak_topics}</i>\n\nMenejerimiz sizga mos guruhni muhokama qilish uchun tez orada bog'lanadi!"
     },
     'cancelled': {
         'en': "Quiz cancelled. You can start it again anytime with /quiz",
@@ -36,6 +36,11 @@ QUIZ_UI_TEXTS = {
         'en': "Admins can't take the quiz 😊",
         'ru': "Админы не могут проходить тест 😊",
         'uz': "Adminlar testni topshira olmaydi 😊"
+    },
+    'no_weak_topics': {
+        'en': "None - Perfect score! 🎯",
+        'ru': "Нет - Идеальный результат! 🎯",
+        'uz': "Yo'q - Mukammal natija! 🎯"
     }
 }
 
@@ -48,87 +53,87 @@ QUIZ_QUESTIONS = [
         "q_video": "BAACAgIAAxkBAAIBj2p--m5ZbQ8hu8vLBXmadLh6km1iAAJEowACqW74S2K4dgVQThq_PQQ",
         "q": "1. Rob is from ____",
         "o": ["the UK", "the USA", "Russia", "Poland"],
-        "c": "the UK"
+        "c": "the UK",
+        "topic": "Countries & Nationalities"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBkGp--m53YhGX3E5vjMeiWYzxbPtNAAJFowACqW74S1FhFN92Baw4PQQ",
         "q": "2. When does Rob think Jenny arrives in London?",
         "o": ["On 20th March", "On 12th of March", "Next week", "He doesn't know"],
-        "c": "On 12th of March"
+        "c": "On 12th of March",
+        "topic": "Dates & Time"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBkWp--m5doKst4-Chv6s0IvQzGPdyAAJGowACqW74S53VqW9xYI6mPQQ",
         "q": "3. He's in Poland _____",
         "o": ["on holiday", "for work", "on business", "for fun"],
-        "c": "for work"
+        "c": "for work",
+        "topic": "Purpose & Prepositions"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBjWp--m6UJaaZJZOQSHvLlavHmceDAAJCowACqW74SyxvdZeVRIZKPQQ",
         "q": "4. How old is Ben?",
         "o": ["25", "23", "24", "26"],
-        "c": "25"
+        "c": "25",
+        "topic": "Numbers & Ages"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBjmp--m43UmLHh7TqXTR0H3ktwKWrAAJDowACqW74S1l2SCCmg7j-PQQ",
         "q": "5. Ben likes Izzy's _____",
         "o": ["coat", "T-shirt", "jumper", "jacket"],
-        "c": "jacket"
+        "c": "jacket",
+        "topic": "Clothing Vocabulary"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBhmp--m68vOJD6yBswUQ_AAEfIav04gACO6MAAqlu-Eudxbe3A0ya0z0E",
         "q": "6. Izzy says Ben _____ to wear a helmet.",
         "o": ["needs", "doesn't need", "need", "hasn't"],
-        "c": "needs"
+        "c": "needs",
+        "topic": "Subject-Verb Agreement"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBh2p--m5pBwkmqz7sM1v_ROhwGOeuAAI9owACqW74S9Lc3SAf2Ut5PQQ",
         "q": "7. Carla is ______ when Ben hurts his back.",
         "o": ["helpful", "concerned", "annoyed", "surprised"],
-        "c": "helpful"
+        "c": "helpful",
+        "topic": "Feelings & Adjectives"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBiGp--m5ycgRZlbPQBGaj9fbq7nGVAAI8owACqW74Sz88zZOQmc1NPQQ",
         "q": "8. How much does Ben think the shoes are?",
         "o": ["£90.95", "£95.99", "£90.50", "£19.95"],
-        "c": "£95.99"
+        "c": "£95.99",
+        "topic": "Prices & Currency"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBiWp--m4NSr32b9msJ2pwioJBopB1AAI-owACqW74S6aS-6YGSSeGPQQ",
         "q": "9. Ben has _____ memories of the dinner at the restaurant.",
         "o": ["bad", "good", "fond", "neutral"],
-        "c": "bad"
+        "c": "bad",
+        "topic": "Adjectives & Vocabulary"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBimp--m6cVtGJQVbOGUeXEUNs1rjqAAJAowACqW74S8tZJKTuELkcPQQ",
         "q": "10. Carla _____ angry with Ben for being late.",
         "o": ["isn't", "is", "aren't", "be"],
-        "c": "isn't"
+        "c": "isn't",
+        "topic": "Verb 'To Be'"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBi2p--m5IfL1IpzmsQAWDBm1MpxWwAAI_owACqW74SyfkLdjpBypBPQQ",
         "q": "11. Izzy is angry with herself because ...",
-        "o": [
-            "she trusted Max too much",
-            "she gave a bad presentation",
-            "she took poor photos",
-            "she forgot her notes"
-        ],
-        "c": "she trusted Max too much"
+        "o": ["she trusted Max too much", "she gave a bad presentation", "she took poor photos", "she forgot her notes"],
+        "c": "she trusted Max too much",
+        "topic": "Cause & Effect (Listening)"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBjGp--m788hC-b91_npDg3L6yAmvUAAJBowACqW74S87eRwN0dJ0MPQQ",
         "q": "12. How did Pamela react to Ben's photos?",
-        "o": [
-            "She was amazed",
-            "She didn't like them",
-            "She was disappointed",
-            "She barely noticed them"
-        ],
-        "c": "She was amazed"
+        "o": ["She was amazed", "She didn't like them", "She was disappointed", "She barely noticed them"],
+        "c": "She was amazed",
+        "topic": "Inference & Reactions"
     }
-    
 ]
-
 # ┌───────────────────────────────────────────────────────────┐
 # │  CORE LOGIC                                               │
 # └───────────────────────────────────────────────────────────┘
@@ -161,6 +166,7 @@ async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data['quiz_score'] = 0
     context.user_data['quiz_index'] = 0
+    context.user_data['weak_topics'] = []
     context.user_data[QUIZ_ACTIVE_KEY] = True
     
     await update.message.reply_text(get_ui_text('intro_video', lang), parse_mode='HTML')
@@ -207,6 +213,10 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         feedback = get_ui_text('wrong', lang, ans=q_data['c'])
         
+        topic = q_data.get('topic', 'General')
+        if topic not in context.user_data['weak_topics']:
+            context.user_data['weak_topics'].append(topic)
+        
     await update.message.reply_text(feedback, parse_mode='HTML')
         
     context.user_data['quiz_index'] += 1
@@ -228,7 +238,16 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     lang = get_user_language(str(chat_id))
     
-    result_text = get_ui_text('result', lang, score=score, total=total, level=level)
+    weak_topics = context.user_data.get('weak_topics', [])
+    
+    # Format the weak topics string for the user
+    if weak_topics:
+        weak_str = ", ".join(weak_topics)
+    else:
+        weak_str = get_ui_text('no_weak_topics', lang)
+    
+    # Pass weak_str into the result message
+    result_text = get_ui_text('result', lang, score=score, total=total, level=level, weak_topics=weak_str)
     
     from app.bot.keyboards import unregistered_menu_keyboard
     await context.bot.send_message(
@@ -244,7 +263,8 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Username: @{user.username if user.username else 'N/A'}\n"
         f"Telegram ID: <code>{chat_id}</code>\n\n"
         f"Score: {score}/{total}\n"
-        f"Level: <b>{level}</b>"
+        f"Level: <b>{level}</b>\n"
+        f"Weak Topics: <i>{weak_str}</i>"
     )
     
     try:
