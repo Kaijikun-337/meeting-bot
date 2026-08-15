@@ -41,6 +41,21 @@ QUIZ_UI_TEXTS = {
         'en': "None - Perfect score! 🎯",
         'ru': "Нет - Идеальный результат! 🎯",
         'uz': "Yo'q - Mukammal natija! 🎯"
+    },
+    'phone_request': {
+        'en': "📱 We noticed you don't have a Telegram @username. To help our manager contact you quickly, please share your phone number.",
+        'ru': "📱 Мы заметили, что у вас нет @username в Telegram. Чтобы наш менеджер мог быстро с вами связаться, пожалуйста, поделитесь своим номером телефона.",
+        'uz': "📱 Sizda Telegram @username yo'qligini payqadik. Menejerimiz siz bilan tez bog'lanishi uchun iltimos, telefon raqamingizni ulashing."
+    },
+    'share_phone_btn': {
+        'en': "📱 Share Phone Number",
+        'ru': "📱 Отправить номер телефона",
+        'uz': "📱 Telefon raqamni ulashish"
+    },
+    'phone_received': {
+        'en': "✅ Thank you! Our manager will contact you soon.",
+        'ru': "✅ Спасибо! Наш менеджер скоро свяжется с вами.",
+        'uz': "✅ Rahmat! Menejerimiz tez orada siz bilan bog'lanadi."
     }
 }
 
@@ -316,13 +331,17 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result_text = get_ui_text('result', lang, score=score, total=total, level=level, weak_topics=weak_str)
     
     from app.bot.keyboards import unregistered_menu_keyboard
+    from telegram import ReplyKeyboardRemove
+    
+    # 1. Send the result text first
     await context.bot.send_message(
         chat_id=chat_id, 
         text=result_text, 
-        parse_mode='HTML', 
-        reply_markup=unregistered_menu_keyboard(lang)
+        parse_mode='HTML',
+        reply_markup=ReplyKeyboardRemove() # Remove the quiz answer keyboard
     )
     
+    # 2. Send Admin notification
     admin_text = (
         f"🧠 <b>New Lead Took The Video Quiz!</b>\n\n"
         f"Name: {user.full_name}\n"
@@ -339,11 +358,74 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         print(f"Failed to send quiz result to admin: {e}")
         
     context.user_data[QUIZ_ACTIVE_KEY] = False
+    
+    # 3. Check if user has a username. If not, ask for phone number
+    if not user.username:
+        context.user_data['awaiting_phone'] = True
+        
+        from telegram import ReplyKeyboardMarkup, KeyboardButton
+        keyboard = [[KeyboardButton(get_ui_text('share_phone_btn', lang), request_contact=True)]]
+        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+        
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=get_ui_text('phone_request', lang),
+            parse_mode='HTML',
+            reply_markup=reply_markup
+        )
+    else:
+        # They have a username, just bring back the main menu
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="👍",
+            reply_markup=unregistered_menu_keyboard(lang)
+        )
+
+async def handle_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # If bot isn't waiting for a phone, ignore this message
+    if not context.user_data.get('awaiting_phone', False):
+        return
+    
+    message = update.message
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+    lang = get_user_language(str(chat_id))
+    
+    phone_number = None
+    if message.contact:
+        phone_number = message.contact.phone_number
+    elif message.text:
+        phone_number = message.text
+        
+    if phone_number:
+        context.user_data['awaiting_phone'] = False
+        from app.bot.keyboards import unregistered_menu_keyboard
+        
+        # Send Admin the phone number
+        admin_phone_text = (
+            f"📞 <b>Phone Number Received</b>\n\n"
+            f"From: {user.full_name}\n"
+            f"Telegram ID: <code>{chat_id}</code>\n"
+            f"Phone: <code>{phone_number}</code>"
+        )
+        try:
+            await context.bot.send_message(chat_id=Config.ADMIN_CHAT_ID, text=admin_phone_text, parse_mode='HTML')
+        except Exception as e:
+            print(f"Failed to send phone to admin: {e}")
+            
+        # Reply to user and restore menu
+        await message.reply_text(
+            get_ui_text('phone_received', lang), 
+            parse_mode='HTML', 
+            reply_markup=unregistered_menu_keyboard(lang)
+        )
+        raise ApplicationHandlerStop()
 
 async def cancel_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get(QUIZ_ACTIVE_KEY, False):
+    if context.user_data.get(QUIZ_ACTIVE_KEY, False) or context.user_data.get('awaiting_phone', False):
         lang = get_user_language(str(update.effective_chat.id))
         from app.bot.keyboards import unregistered_menu_keyboard
         context.user_data[QUIZ_ACTIVE_KEY] = False
+        context.user_data['awaiting_phone'] = False
         await update.message.reply_text(get_ui_text('cancelled', lang), reply_markup=unregistered_menu_keyboard(lang))
         raise ApplicationHandlerStop()
