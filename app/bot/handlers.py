@@ -268,7 +268,7 @@ def register_handlers(app: Application):
     app.add_handler(MessageHandler(filters.Regex('^/start quiz$'), start_quiz))
     
     # Intercept text messages IF user is in quiz
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quiz_answer, block=False))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, handle_quiz_answer, block=False))
     app.add_handler(CommandHandler("cancel", cancel_quiz, block=False))
     
     # ═══════════════════════════════════════════════════════════

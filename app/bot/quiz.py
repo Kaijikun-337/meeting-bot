@@ -23,9 +23,9 @@ QUIZ_UI_TEXTS = {
         'uz': "❌ Noto'g'ri. To'g'ri javob: <b>{ans}</b>"
     },
     'result': {
-        'en': "🎉 <b>Quiz Complete!</b>\n\nYour score: <b>{score}/{total}</b>\nYour estimated level: <b>{level}</b>\n\nAreas to improve: <i>{weak_topics}</i>\n\nOur manager will contact you shortly to discuss the best group for you!",
-        'ru': "🎉 <b>Тест завершен!</b>\n\nВаш результат: <b>{score}/{total}</b>\nВаш примерный уровень: <b>{level}</b>\n\nЗоны для улучшения: <i>{weak_topics}</i>\n\nНаш менеджер скоро свяжется с вами, чтобы обсудить подходящую группу!",
-        'uz': "🎉 <b>Test yakunlandi!</b>\n\nSizning balingiz: <b>{score}/{total}</b>\nTaxminiy darajangiz: <b>{level}</b>\n\nYaxshilash kerak bo'lgan yo'nalishlar: <i>{weak_topics}</i>\n\nMenejerimiz sizga mos guruhni muhokama qilish uchun tez orada bog'lanadi!"
+        'en': "🎉 <b>Quiz Complete!</b>\n\nYour score: <b>{score}/{total}</b>\nYour estimated level: <b>{level}</b>\n\n<b>Areas to improve:</b>\n{weak_topics}\n\nOur manager will contact you shortly to discuss the best group for you!",
+        'ru': "🎉 <b>Тест завершен!</b>\n\nВаш результат: <b>{score}/{total}</b>\nВаш примерный уровень: <b>{level}</b>\n\n<b>Зоны для улучшения:</b>\n{weak_topics}\n\nНаш менеджер скоро свяжется с вами, чтобы обсудить подходящую группу!",
+        'uz': "🎉 <b>Test yakunlandi!</b>\n\nSizning balingiz: <b>{score}/{total}</b>\nTaxminiy darajangiz: <b>{level}</b>\n\n<b>Yaxshilash kerak bo'lgan yo'nalishlar:</b>\n{weak_topics}\n\nMenejerimiz sizga mos guruhni muhokama qilish uchun tez orada bog'lanadi!"
     },
     'cancelled': {
         'en': "Quiz cancelled. You can start it again anytime with /quiz",
@@ -138,6 +138,69 @@ QUIZ_QUESTIONS = [
 # │  CORE LOGIC                                               │
 # └───────────────────────────────────────────────────────────┘
 
+QUIZ_TOPICS = {
+    "Countries & Nationalities": {
+        "en": "Countries & Nationalities -> Example: UK, USA, Polish",
+        "ru": "Страны и национальности (Countries) -> Пример: UK, USA, Polish",
+        "uz": "Davlatlar va millatlar (Countries) -> Masalan: UK, USA, Polish"
+    },
+    "Dates & Time": {
+        "en": "Dates & Time -> Example: 12th of March",
+        "ru": "Даты и время (Dates & Time) -> Пример: 12th of March",
+        "uz": "Sana va vaqt (Dates & Time) -> Masalan: 12th of March"
+    },
+    "Purpose & Prepositions": {
+        "en": "Purpose & Prepositions -> Example: for work, on holiday",
+        "ru": "Цель и предлоги (Purpose & Prepositions) -> Пример: for work, on holiday",
+        "uz": "Maqsad va predloglar (Purpose & Prepositions) -> Masalan: for work, on holiday"
+    },
+    "Numbers & Ages": {
+        "en": "Numbers & Ages -> Example: 25, 26",
+        "ru": "Числа и возраст (Numbers & Ages) -> Пример: 25, 26",
+        "uz": "Sonlar va yosh (Numbers & Ages) -> Masalan: 25, 26"
+    },
+    "Clothing Vocabulary": {
+        "en": "Clothing Vocabulary -> Example: jacket, jumper",
+        "ru": "Одежда (Clothing) -> Пример: jacket, jumper",
+        "uz": "Kiyimlar (Clothing) -> Masalan: jacket, jumper"
+    },
+    "Subject-Verb Agreement": {
+        "en": "Subject-Verb Agreement -> Example: he/she needs",
+        "ru": "Согласование подлежащего и сказуемого (Subject-Verb Agreement) -> Пример: he/she needs",
+        "uz": "Ega va kesim mosligi (Subject-Verb Agreement) -> Masalan: he/she needs"
+    },
+    "Feelings & Adjectives": {
+        "en": "Feelings & Adjectives -> Example: helpful, concerned",
+        "ru": "Чувства и прилагательные (Feelings & Adjectives) -> Пример: helpful, concerned",
+        "uz": "His-tuyg'ular va sifatlar (Feelings & Adjectives) -> Masalan: helpful, concerned"
+    },
+    "Prices & Currency": {
+        "en": "Prices & Currency -> Example: £95.99",
+        "ru": "Цены и валюта (Prices & Currency) -> Пример: £95.99",
+        "uz": "Narxlar va valyuta (Prices & Currency) -> Masalan: £95.99"
+    },
+    "Adjectives & Vocabulary": {
+        "en": "Adjectives & Vocabulary -> Example: bad, good",
+        "ru": "Прилагательные и лексика (Adjectives) -> Пример: bad, good",
+        "uz": "Sifatlar va lug'at (Adjectives) -> Masalan: bad, good"
+    },
+    "Verb 'To Be'": {
+        "en": "Verb 'To Be' -> Example: is, isn't, are",
+        "ru": "Глагол 'To Be' (Verb To Be) -> Пример: is, isn't, are",
+        "uz": "\"To Be\" fe'li (Verb To Be) -> Masalan: is, isn't, are"
+    },
+    "Cause & Effect (Listening)": {
+        "en": "Cause & Effect (Listening) -> Example: because she trusted him",
+        "ru": "Причина и следствие (Cause & Effect) -> Пример: because she trusted him",
+        "uz": "Sabab va oqibat (Cause & Effect) -> Masalan: because she trusted him"
+    },
+    "Inference & Reactions": {
+        "en": "Inference & Reactions -> Example: She was amazed",
+        "ru": "Умозаключение и реакции (Inference) -> Пример: She was amazed",
+        "uz": "Xulosa va reaktsiyalar (Inference) -> Masalan: She was amazed"
+    }
+}
+
 def get_ui_text(key, lang, **kwargs):
     text = QUIZ_UI_TEXTS.get(key, {}).get(lang, QUIZ_UI_TEXTS.get(key, {}).get('en', ''))
     return text.format(**kwargs)
@@ -240,13 +303,16 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     weak_topics = context.user_data.get('weak_topics', [])
     
-    # Format the weak topics string for the user
+    # Translate topics and format as a bulleted list
     if weak_topics:
-        weak_str = ", ".join(weak_topics)
+        translated_topics = []
+        for topic in weak_topics:
+            topic_str = QUIZ_TOPICS.get(topic, {}).get(lang, QUIZ_TOPICS.get(topic, {}).get('en', topic))
+            translated_topics.append(f"  - {topic_str}")
+        weak_str = "\n".join(translated_topics)
     else:
         weak_str = get_ui_text('no_weak_topics', lang)
     
-    # Pass weak_str into the result message
     result_text = get_ui_text('result', lang, score=score, total=total, level=level, weak_topics=weak_str)
     
     from app.bot.keyboards import unregistered_menu_keyboard
@@ -264,7 +330,7 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Telegram ID: <code>{chat_id}</code>\n\n"
         f"Score: {score}/{total}\n"
         f"Level: <b>{level}</b>\n"
-        f"Weak Topics: <i>{weak_str}</i>"
+        f"Weak Topics:\n{weak_str}"
     )
     
     try:
