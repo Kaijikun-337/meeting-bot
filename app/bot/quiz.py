@@ -4,7 +4,7 @@ from app.config import Config
 from app.utils.localization import get_user_language
 import asyncio
 
-QUIZ_ACTIVE_KEY = 'quiz_active'
+QUIZ_ACTIVE = 0
 
 QUIZ_UI_TEXTS = {
     'intro_video': {
