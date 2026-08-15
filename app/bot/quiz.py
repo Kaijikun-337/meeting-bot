@@ -299,45 +299,6 @@ async def send_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # If user is not in quiz, let other handlers process this message
-    if not context.user_data.get(QUIZ_ACTIVE_KEY, False):
-        return
-    
-    text = update.message.text
-    index = context.user_data['quiz_index']
-    q_data = QUIZ_QUESTIONS[index]
-    lang = get_user_language(str(update.effective_chat.id))
-    
-    if text not in q_data['o']:
-        await update.message.reply_text(get_ui_text('use_buttons', lang))
-        raise ApplicationHandlerStop()
-        
-    is_correct = text == q_data['c']
-    
-    if is_correct:
-        context.user_data['quiz_score'] += 1
-        feedback = get_ui_text('correct', lang)
-    else:
-        feedback = get_ui_text('wrong', lang, ans=q_data['c'])
-        
-        topic = q_data.get('topic', 'General')
-        if topic not in context.user_data['weak_topics']:
-            context.user_data['weak_topics'].append(topic)
-        
-    await update.message.reply_text(feedback, parse_mode='HTML')
-        
-    context.user_data['quiz_index'] += 1
-    
-    await asyncio.sleep(1.5)
-    
-    if context.user_data['quiz_index'] < len(QUIZ_QUESTIONS):
-        await send_question(update, context)
-    else:
-        await finish_quiz(update, context)
-        
-    raise ApplicationHandlerStop()
-
 async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     score = context.user_data['quiz_score']
     total = len(QUIZ_QUESTIONS)
@@ -391,47 +352,6 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-async def handle_plan_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.user_data.get('awaiting_plan', False):
-        return
-    
-    text = update.message.text
-    lang = get_user_language(str(update.effective_chat.id))
-    user = update.effective_user
-    
-    # Bulletproof matching using keywords
-    selected_plan = None
-    if "Standard" in text or "Стандарт" in text:
-        selected_plan = 'Standard'
-    elif "Comfort" in text or "Комфорт" in text:
-        selected_plan = 'Comfort'
-    elif "Ultima" in text:
-        selected_plan = 'Ultima'
-        
-    if not selected_plan:
-        return # Not a plan button, let other handlers process
-        
-    context.user_data['awaiting_plan'] = False
-    context.user_data['selected_plan'] = selected_plan
-    
-    # If they don't have a username, ask for phone before sending report
-    if not user.username:
-        context.user_data['awaiting_phone'] = True
-        from telegram import ReplyKeyboardMarkup, KeyboardButton
-        keyboard = [[KeyboardButton(get_ui_text('share_phone_btn', lang), request_contact=True)]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
-        
-        await update.message.reply_text(
-            get_ui_text('phone_request', lang),
-            parse_mode='HTML',
-            reply_markup=reply_markup
-        )
-    else:
-        # They have a username, send report immediately
-        await send_final_report_and_finish(update, context)
-        
-    raise ApplicationHandlerStop()
-
 async def send_final_report_and_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     chat_id = update.effective_chat.id
@@ -477,23 +397,94 @@ async def send_final_report_and_finish(update: Update, context: ContextTypes.DEF
     )
     context.user_data['awaiting_phone'] = False
     context.user_data['awaiting_plan'] = False
-
-async def handle_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.user_data.get('awaiting_phone', False):
-        return
     
-    message = update.message
-    phone_number = None
-    if message.contact:
-        phone_number = message.contact.phone_number
-    elif message.text:
-        phone_number = message.text
+async def handle_unregistered_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Unified handler for all text messages during the quiz/lead-capture flow."""
+    text = update.message.text
+    chat_id = update.effective_chat.id
+    lang = get_user_language(str(chat_id))
+    user = update.effective_user
+    
+    # 1. Check if taking the quiz
+    if context.user_data.get(QUIZ_ACTIVE_KEY, False):
+        index = context.user_data['quiz_index']
+        q_data = QUIZ_QUESTIONS[index]
         
-    if phone_number:
-        context.user_data['phone_number'] = phone_number
+        if text not in q_data['o']:
+            await update.message.reply_text(get_ui_text('use_buttons', lang))
+            raise ApplicationHandlerStop()
+            
+        is_correct = text == q_data['c']
+        if is_correct:
+            context.user_data['quiz_score'] += 1
+            feedback = get_ui_text('correct', lang)
+        else:
+            feedback = get_ui_text('wrong', lang, ans=q_data['c'])
+            topic = q_data.get('topic', 'General')
+            if topic not in context.user_data['weak_topics']:
+                context.user_data['weak_topics'].append(topic)
+            
+        await update.message.reply_text(feedback, parse_mode='HTML')
+        context.user_data['quiz_index'] += 1
+        
+        await asyncio.sleep(1.5)
+        
+        if context.user_data['quiz_index'] < len(QUIZ_QUESTIONS):
+            await send_question(update, context)
+        else:
+            await finish_quiz(update, context)
+        raise ApplicationHandlerStop()
+        
+    # 2. Check if awaiting plan selection
+    if context.user_data.get('awaiting_plan', False):
+        text_lower = text.lower()
+        selected_plan = None
+        if "standard" in text_lower or "стандарт" in text_lower:
+            selected_plan = 'Standard'
+        elif "comfort" in text_lower or "комфорт" in text_lower:
+            selected_plan = 'Comfort'
+        elif "ultima" in text_lower:
+            selected_plan = 'Ultima'
+            
+        if not selected_plan:
+            await update.message.reply_text("👇 Please select a plan from the buttons below:")
+            raise ApplicationHandlerStop()
+            
+        context.user_data['awaiting_plan'] = False
+        context.user_data['selected_plan'] = selected_plan
+        
+        if not user.username:
+            context.user_data['awaiting_phone'] = True
+            keyboard = [[KeyboardButton(get_ui_text('share_phone_btn', lang), request_contact=True)]]
+            reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+            
+            await update.message.reply_text(
+                get_ui_text('phone_request', lang),
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
+        else:
+            await send_final_report_and_finish(update, context)
+            
+        raise ApplicationHandlerStop()
+
+    # 3. Check if awaiting phone number (via manual text input)
+    if context.user_data.get('awaiting_phone', False):
+        context.user_data['phone_number'] = text
         context.user_data['awaiting_phone'] = False
         await send_final_report_and_finish(update, context)
         raise ApplicationHandlerStop()
+
+async def handle_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the user clicking the 'Share Phone Number' Telegram native button."""
+    if not context.user_data.get('awaiting_phone', False):
+        return
+        
+    phone_number = update.message.contact.phone_number
+    context.user_data['phone_number'] = phone_number
+    context.user_data['awaiting_phone'] = False
+    await send_final_report_and_finish(update, context)
+    raise ApplicationHandlerStop()
 
 async def cancel_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get(QUIZ_ACTIVE_KEY, False) or context.user_data.get('awaiting_phone', False) or context.user_data.get('awaiting_plan', False):
