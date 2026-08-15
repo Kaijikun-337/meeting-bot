@@ -1,12 +1,11 @@
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
-from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import ContextTypes, CommandHandler, MessageHandler, filters, ApplicationHandlerStop
 from app.config import Config
 from app.utils.localization import get_user_language
 import asyncio
 
-QUIZ_ACTIVE = 0
+QUIZ_ACTIVE_KEY = 'quiz_active'
 
-# UI Texts (Multilingual)
 QUIZ_UI_TEXTS = {
     'intro_video': {
         'en': "🎥 <b>Video Quiz Time!</b>\n\nWatch the video, then answer the question. If you get it wrong, we'll show you a video with the correct answer. Let's go!",
@@ -154,31 +153,30 @@ async def start_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if str(chat_id) == str(Config.ADMIN_CHAT_ID):
         await update.message.reply_text(get_ui_text('admin_cant', lang))
-        return ConversationHandler.END
+        return
+
+    if context.user_data.get(QUIZ_ACTIVE_KEY, False):
+        await update.message.reply_text(get_ui_text('already_taking', lang))
+        return
 
     context.user_data['quiz_score'] = 0
     context.user_data['quiz_index'] = 0
+    context.user_data[QUIZ_ACTIVE_KEY] = True
     
-    # 1. Send intro text
     await update.message.reply_text(get_ui_text('intro_video', lang), parse_mode='HTML')
-    
-    # 2. Ask the first question
     await send_question(update, context)
-    return QUIZ_ACTIVE
 
 async def send_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     index = context.user_data['quiz_index']
     q_data = QUIZ_QUESTIONS[index]
     chat_id = update.effective_chat.id
     
-    # Build ReplyKeyboard with options
     keyboard = []
     for opt in q_data['o']:
         keyboard.append([KeyboardButton(opt)])
         
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
     
-    # Send the Question Video with the text question as a caption
     await context.bot.send_video(
         chat_id=chat_id,
         video=q_data['q_video'],
@@ -188,15 +186,18 @@ async def send_question(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # If user is not in quiz, let other handlers process this message
+    if not context.user_data.get(QUIZ_ACTIVE_KEY, False):
+        return
+    
     text = update.message.text
     index = context.user_data['quiz_index']
     q_data = QUIZ_QUESTIONS[index]
     lang = get_user_language(str(update.effective_chat.id))
     
-    # If user types random text instead of clicking a button
     if text not in q_data['o']:
         await update.message.reply_text(get_ui_text('use_buttons', lang))
-        return QUIZ_ACTIVE
+        raise ApplicationHandlerStop()
         
     is_correct = text == q_data['c']
     
@@ -206,21 +207,18 @@ async def handle_quiz_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         feedback = get_ui_text('wrong', lang, ans=q_data['c'])
         
-    # Send feedback as a normal text message
     await update.message.reply_text(feedback, parse_mode='HTML')
         
     context.user_data['quiz_index'] += 1
     
-    # Small pause before next question for better UX
     await asyncio.sleep(1.5)
     
     if context.user_data['quiz_index'] < len(QUIZ_QUESTIONS):
         await send_question(update, context)
     else:
         await finish_quiz(update, context)
-        return ConversationHandler.END
         
-    return QUIZ_ACTIVE
+    raise ApplicationHandlerStop()
 
 async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     score = context.user_data['quiz_score']
@@ -232,7 +230,6 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     result_text = get_ui_text('result', lang, score=score, total=total, level=level)
     
-    # Bring back the unregistered menu so they aren't stuck without a keyboard
     from app.bot.keyboards import unregistered_menu_keyboard
     await context.bot.send_message(
         chat_id=chat_id, 
@@ -254,22 +251,13 @@ async def finish_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=Config.ADMIN_CHAT_ID, text=admin_text, parse_mode='HTML')
     except Exception as e:
         print(f"Failed to send quiz result to admin: {e}")
+        
+    context.user_data[QUIZ_ACTIVE_KEY] = False
 
 async def cancel_quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lang = get_user_language(str(update.effective_chat.id))
-    from app.bot.keyboards import unregistered_menu_keyboard
-    await update.message.reply_text(get_ui_text('cancelled', lang), reply_markup=unregistered_menu_keyboard(lang))
-    return ConversationHandler.END
-
-quiz_conv_handler = ConversationHandler(
-    entry_points=[
-        CommandHandler("quiz", start_quiz),
-        MessageHandler(filters.Regex('^🧠'), start_quiz),
-        MessageHandler(filters.Regex('^/start quiz$'), start_quiz)
-    ],
-    states={
-        # Listen for text messages instead of callback queries
-        QUIZ_ACTIVE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_quiz_answer)]
-    },
-    fallbacks=[CommandHandler("cancel", cancel_quiz)]
-)
+    if context.user_data.get(QUIZ_ACTIVE_KEY, False):
+        lang = get_user_language(str(update.effective_chat.id))
+        from app.bot.keyboards import unregistered_menu_keyboard
+        context.user_data[QUIZ_ACTIVE_KEY] = False
+        await update.message.reply_text(get_ui_text('cancelled', lang), reply_markup=unregistered_menu_keyboard(lang))
+        raise ApplicationHandlerStop()
