@@ -179,6 +179,12 @@ def init_database():
         )
     """)
     
+    cursor.execute(f"""
+                   CREATE TABLE IF NOT EXISTS bot_starts(
+                    char_id TEXT PRIMARY_KEY
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
+                   """)
+    
     conn.commit()
     conn.close()
     print("✅ Database initialized successfully.")

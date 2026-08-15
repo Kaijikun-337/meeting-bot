@@ -4,33 +4,48 @@ from app.services.user_service import activate_user, is_registered, get_user
 from app.config import Config
 from app.bot.keyboards import main_menu_keyboard
 from app.utils.localization import get_user_language, get_text, set_user_language
+from app.database.db import get_connection
 
 # States
 ENTERING_KEY = 0
-
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
     chat_id = str(update.effective_chat.id)
     lang = get_user_language(chat_id)
 
-    # --- NEW: Notify Admin about the new user ---
+    # --- NEW: Notify Admin ONLY on first /start ---
     if chat_id != str(Config.ADMIN_CHAT_ID):
-        try:
-            user = update.effective_user
-            admin_notify_text = (
-                f"🚀 <b>New User Started the Bot</b>\n\n"
-                f"Name: {user.full_name}\n"
-                f"Username: @{user.username if user.username else 'N/A'}\n"
-                f"Telegram ID: <code>{chat_id}</code>"
-            )
-            await context.bot.send_message(
-                chat_id=Config.ADMIN_CHAT_ID, 
-                text=admin_notify_text, 
-                parse_mode='HTML'
-            )
-        except Exception as e:
-            print(f"Failed to notify admin about new start: {e}")
+        conn = get_connection()
+        cur = conn.cursor()
+        
+        # Check if this user has started the bot before
+        cur.execute("SELECT chat_id FROM bot_starts WHERE chat_id = ?", (chat_id,))
+        has_started = cur.fetchone()
+        
+        if not has_started:
+            try:
+                user = update.effective_user
+                admin_notify_text = (
+                    f"🚀 <b>New User Started the Bot</b>\n\n"
+                    f"Name: {user.full_name}\n"
+                    f"Username: @{user.username if user.username else 'N/A'}\n"
+                    f"Telegram ID: <code>{chat_id}</code>"
+                )
+                await context.bot.send_message(
+                    chat_id=Config.ADMIN_CHAT_ID, 
+                    text=admin_notify_text, 
+                    parse_mode='HTML'
+                )
+            except Exception as e:
+                print(f"Failed to notify admin about new start: {e}")
+            
+            # Mark them as started so we don't spam next time
+            cur.execute("INSERT INTO bot_starts (chat_id) VALUES (?)", (chat_id,))
+            conn.commit()
+            
+        cur.close()
+        conn.close()
     # -------------------------------------------
 
     # Check if admin
@@ -61,7 +76,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Auto-detect language from Telegram settings
     if lang == 'en' and update.effective_user.language_code:
         detected_code = update.effective_user.language_code[:2]
-        # FIX IS HERE: Check against actual language codes, not 'welcome_message'
         if detected_code in ['ru', 'uz']: 
             lang = detected_code
     
@@ -72,7 +86,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     return ENTERING_KEY
-
 
 async def key_entered(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle registration key input."""

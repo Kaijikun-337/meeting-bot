@@ -89,8 +89,8 @@ QUIZ_QUESTIONS = [
     {
         "q_video": "BAACAgIAAxkBAAIBiGp--m5ycgRZlbPQBGaj9fbq7nGVAAI8owACqW74Sz88zZOQmc1NPQQ",
         "q": "8. How much does Ben think the shoes are?",
-        "o": ["£90.95", "£95.90", "£90.50", "£19.95"],
-        "c": "£90.95"
+        "o": ["£90.95", "£95.99", "£90.50", "£19.95"],
+        "c": "£95.99"
     },
     {
         "q_video": "BAACAgIAAxkBAAIBiWp--m4NSr32b9msJ2pwioJBopB1AAI-owACqW74S6aS-6YGSSeGPQQ",
