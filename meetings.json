@@ -263,7 +263,7 @@
       }
     },
     {
-      "id": "en_s_1200_group_bonu_sardor",
+      "id": "en_f_2100_group_bonu_sardor",
       "title": "Английский язык",
       "description": "Индивидуальные занятия по английскому. \n👨‍🎓 Ученики: Бону",
       "duration_minutes": 60,
@@ -272,9 +272,9 @@
       "group_name": "Group Bonu",
       "schedule": {
         "days": [
-          "saturday"
+          "friday"
         ],
-        "hour": 12,
+        "hour": 21,
         "minute": 0
       }
     },
