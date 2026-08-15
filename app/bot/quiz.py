@@ -58,9 +58,9 @@ QUIZ_UI_TEXTS = {
         'uz': "✅ Rahmat! Menejerimiz tez orada siz bilan bog'lanadi."
     },
     'price_list': {
-        'en': "📋 <b>Price List & Plans</b>\n\nChoose the best option for you:\n\n📚 <b>Standard</b> (groups of 8-10 students)\n💵 750,000 UZS / month\n\n⭐️ <b>Comfort</b> (mini-groups up to 4 students)\n💵 1,200,000 UZS / month\n\n💎 <b>Ultima</b> (1-on-1, turnkey)\n💵 2,500,000 UZS / month\n\n👇 Please select a plan below:",
-        'ru': "📋 <b>Прайс-лист и тарифы</b>\n\nВыберите лучший вариант для себя:\n\n📚 <b>Стандарт</b> (группы 8-10 человек)\n💵 750 000 сум / мес\n\n⭐️ <b>Комфорт</b> (мини-группы до 4 человек)\n💵 1 200 000 сум / мес\n\n💎 <b>Ultima</b> (индивидуально под ключ)\n💵 2 500 000 сум / мес\n\n👇 Пожалуйста, выберите тариф ниже:",
-        'uz': "📋 <b>Narxlar va tariflar</b>\n\nO'zingizga mos eng yaxshi variantni tanlang:\n\n📚 <b>Standard</b> (8-10 kishilik guruhlar)\n💵 750,000 UZS / oy\n\n⭐️ <b>Comfort</b> (4 kishigacha mini-guruhlar)\n💵 1,200,000 UZS / oy\n\n💎 <b>Ultima</b> (1-dan 1-ga, tayyor dastur)\n💵 2,500,000 UZS / oy\n\n👇 Iltimos, quyidan tarifni tanlang:"
+        'en': "📋 <b>Price List & Plans</b>\n\nChoose the best option for you:\n\n📚 <b>Standard</b> (groups of 8-10 students)\n💵 750,000 UZS / month\n\n⭐️ <b>Comfort</b> (mini-groups up to 4 students)\n💵 1,200,000 UZS / month\n\n💎 <b>Ultima</b> (1-on-1)\n💵 2,500,000 UZS / month\n\n👇 Please select a plan below:",
+        'ru': "📋 <b>Прайс-лист и тарифы</b>\n\nВыберите лучший вариант для себя:\n\n📚 <b>Стандарт</b> (группы 8-10 человек)\n💵 750 000 сум / мес\n\n⭐️ <b>Комфорт</b> (мини-группы до 4 человек)\n💵 1 200 000 сум / мес\n\n💎 <b>Ultima</b> (индивидуально)\n💵 2 500 000 сум / мес\n\n👇 Пожалуйста, выберите тариф ниже:",
+        'uz': "📋 <b>Narxlar va tariflar</b>\n\nO'zingizga mos eng yaxshi variantni tanlang:\n\n📚 <b>Standard</b> (8-10 kishilik guruhlar)\n💵 750,000 UZS / oy\n\n⭐️ <b>Comfort</b> (4 kishigacha mini-guruhlar)\n💵 1,200,000 UZS / oy\n\n💎 <b>Ultima</b> (1-dan 1-ga)\n💵 2,500,000 UZS / oy\n\n👇 Iltimos, quyidan tarifni tanlang:"
     },
     'plan_group': {
         'en': '📚 Standard',
@@ -76,6 +76,16 @@ QUIZ_UI_TEXTS = {
         'en': '💎 Ultima',
         'ru': '💎 Ultima',
         'uz': '💎 Ultima'
+    },
+        'already_taking': {
+        'en': "You are already taking the quiz! Please answer the current question.",
+        'ru': "Вы уже проходите тест! Пожалуйста, ответьте на текущий вопрос.",
+        'uz': "Siz allaqachon testni topshiryapsiz! Iltimos, joriy savolga javob bering."
+    },
+    'use_buttons': {
+        'en': "Please select an answer using the buttons below 👇",
+        'ru': "Пожалуйста, выберите ответ, используя кнопки ниже 👇",
+        'uz': "Iltimos, quyidagi tugmalardan foydalanib javobni tanlang 👇"
     }
 }
 
@@ -389,26 +399,17 @@ async def handle_plan_selection(update: Update, context: ContextTypes.DEFAULT_TY
     lang = get_user_language(str(update.effective_chat.id))
     user = update.effective_user
     
-    # Map the button text back to a standard plan name
-    plans = {
-        get_ui_text('plan_group', lang): 'Standard',
-        get_ui_text('plan_mini_group', lang): 'Comfort',
-        get_ui_text('plan_individual', lang): 'Ultima'
-    }
-    
-    selected_plan = plans.get(text)
-    
-    # Bulletproof fallback just in case language settings mismatch
+    # Bulletproof matching using keywords
+    selected_plan = None
+    if "Standard" in text or "Стандарт" in text:
+        selected_plan = 'Standard'
+    elif "Comfort" in text or "Комфорт" in text:
+        selected_plan = 'Comfort'
+    elif "Ultima" in text:
+        selected_plan = 'Ultima'
+        
     if not selected_plan:
-        if "Standard" in text or "Стандарт" in text:
-            selected_plan = 'Standard'
-        elif "Comfort" in text or "Комфорт" in text:
-            selected_plan = 'Comfort'
-        elif "Ultima" in text:
-            selected_plan = 'Ultima'
-            
-    if not selected_plan:
-        return # Still not a plan button, let other handlers process
+        return # Not a plan button, let other handlers process
         
     context.user_data['awaiting_plan'] = False
     context.user_data['selected_plan'] = selected_plan
@@ -460,13 +461,11 @@ async def send_final_report_and_finish(update: Update, context: ContextTypes.DEF
         f"Weak Topics:\n{weak_str}"
     )
     
-    # Send to ALL admins
-    from app.config import Config
-    for admin_id in Config.ADMIN_IDS:
-        try:
-            await context.bot.send_message(chat_id=admin_id, text=admin_text, parse_mode='HTML')
-        except Exception as e:
-            print(f"Failed to send quiz result to admin {admin_id}: {e}")
+    # Send to single admin
+    try:
+        await context.bot.send_message(chat_id=Config.ADMIN_CHAT_ID, text=admin_text, parse_mode='HTML')
+    except Exception as e:
+        print(f"Failed to send quiz result to admin: {e}")
             
     # Restore menu for user
     from app.bot.keyboards import unregistered_menu_keyboard
