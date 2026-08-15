@@ -33,7 +33,7 @@ from app.bot.error_handler import error_handler
 from app.utils.localization import get_text, get_user_language
 from app.bot.homework import get_homework_conversation_handler
 from app.bot.payment_handler import handle_receipt_upload, handle_payment_callback
-from app.bot.quiz import start_quiz, handle_quiz_answer, cancel_quiz, handle_phone_number, handle_plan_selection
+from app.bot.quiz import start_quiz, handle_unregistered_text, handle_contact, cancel_quiz
 
 # ═══════════════════════════════════════════════════════════
 # MULTILINGUAL BUTTON FILTERS
@@ -262,20 +262,18 @@ def register_handlers(app: Application):
     # REGISTER HANDLERS (order matters!)
     # ═══════════════════════════════════════════════════════════
     
-    # Entry points for quiz
+        # Entry points for quiz
     app.add_handler(CommandHandler("quiz", start_quiz))
     app.add_handler(MessageHandler(filters.Regex('^🧠'), start_quiz))
     app.add_handler(MessageHandler(filters.Regex('^/start quiz$'), start_quiz))
     
-    # Intercept text messages IF user is in quiz
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, handle_quiz_answer, block=False))
+    # Unified handler for Quiz Answers, Plan Selection, and Manual Phone text
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, handle_unregistered_text, block=False))
     
-    # NEW: Intercept Plan Selection
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, handle_plan_selection, block=False))
+    # Handler for Telegram native Contact sharing button
+    app.add_handler(MessageHandler(filters.CONTACT, handle_contact, block=False))
     
-    # Intercept Phone Contact or Text if waiting for phone
-    app.add_handler(MessageHandler(filters.CONTACT, handle_phone_number, block=False))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~menu_button_filter, handle_phone_number, block=False))
+    app.add_handler(CommandHandler("cancel", cancel_quiz, block=False))
     
     # ═══════════════════════════════════════════════════════════
     # CONVERSATION HANDLERS
